@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURA-1 : Personal AI Agent Plan & Live Interactive Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0c0e14;
+      --bg-surface: #141722;
+      --bg-surface-elevated: #1c2130;
+      --border-subtle: rgba(255, 215, 0, 0.12);
+      --border-active: rgba(255, 215, 0, 0.4);
+      --text-main: #f0f3fa;
+      --text-muted: #8e9bb5;
+      --text-dim: #5c6882;
+      
+      --gold-primary: #f5b041;
+      --gold-bright: #ffdc73;
+      --gold-deep: #b7791f;
+      --gold-glow: rgba(245, 176, 65, 0.45);
+      
+      --accent-cyan: #38bdf8;
+      --accent-green: #34d399;
+      --accent-red: #f87171;
+      --accent-purple: #c084fc;
+      
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+    }
+
+    [data-theme="light"] {
+      --bg-base: #f5f6fa;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #eef1f8;
+      --border-subtle: rgba(183, 121, 31, 0.18);
+      --border-active: rgba(183, 121, 31, 0.5);
+      --text-main: #131722;
+      --text-muted: #4e5a75;
+      --text-dim: #8b96ad;
+      --gold-glow: rgba(217, 130, 10, 0.28);
+    }
+
+    [data-theme="glass"] {
+      --bg-base: rgba(15, 20, 32, 0.75);
+      --bg-surface: rgba(26, 34, 52, 0.6);
+      --bg-surface-elevated: rgba(38, 49, 74, 0.65);
+      --border-subtle: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(30px) saturate(180%);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      line-height: 1.6;
+      transition: background-color 0.4s ease, color 0.4s ease;
+      overflow-x: hidden;
+    }
+
+    .app-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 24px 80px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-orb-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff6cc 0%, var(--gold-bright) 30%, var(--gold-primary) 70%, var(--gold-deep) 100%);
+      box-shadow: 0 0 16px var(--gold-glow);
+      animation: floatSubtle 4s ease-in-out infinite;
+    }
+
+    .brand h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff, var(--gold-bright));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    [data-theme="light"] .brand h1 {
+      background: linear-gradient(135deg, #111, var(--gold-deep));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-rust {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(245, 176, 65, 0.15);
+      color: var(--gold-bright);
+      border: 1px solid var(--border-active);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .theme-controls {
+      display: flex;
+      gap: 8px;
+      background: var(--bg-surface);
+      padding: 5px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .theme-btn {
+      background: none;
+      border: none;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .theme-btn.active, .theme-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--gold-bright);
+    }
+
+    /* Grid Layout */
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 32px;
+      margin-bottom: 40px;
+    }
+
+    @media (max-width: 1060px) {
+      .hero-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Orb Interactive Stage */
+    .interactive-stage {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    .stage-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      z-index: 5;
+    }
+
+    .stage-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--gold-bright);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .state-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gold-primary);
+      box-shadow: 0 0 8px var(--gold-primary);
+    }
+
+    .orb-canvas-container {
+      height: 360px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: var(--radius-md);
+      background: radial-gradient(circle at center, rgba(245, 176, 65, 0.05) 0%, transparent 70%);
+      border: 1px dashed var(--border-subtle);
+      cursor: grab;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .desktop-hint {
+      position: absolute;
+      bottom: 10px;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      pointer-events: none;
+    }
+
+    /* The Golden Orb */
+    .golden-orb-widget {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.15s ease-out, filter 0.3s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .orb-core {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fffbe6 0%, #ffeaa7 20%, #f5b041 55%, #b7791f 85%, #744210 100%);
+      box-shadow: 
+        0 0 25px var(--gold-glow),
+        0 0 60px rgba(245, 176, 65, 0.35),
+        inset -8px -8px 18px rgba(0, 0, 0, 0.6),
+        inset 6px 6px 12px rgba(255, 255, 255, 0.8);
+      animation: floatOrb 5s ease-in-out infinite, pulseGlow 3s ease-in-out infinite alternate;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .orb-ring {
+      position: absolute;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 220, 115, 0.3);
+      box-shadow: 0 0 15px rgba(245, 176, 65, 0.2);
+      pointer-events: none;
+      animation: rotateRing 12s linear infinite;
+    }
+
+    .orb-pulse-wave {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid var(--gold-bright);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Screen Vision Radar Animation */
+    .vision-radar-sweep {
+      position: absolute;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      border: 2px dashed rgba(56, 189, 248, 0.5);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.35);
+      pointer-events: none;
+      display: none;
+      animation: radarScan 2.5s linear infinite;
+    }
+
+    .vision-radar-sweep.active {
+      display: block;
+    }
+
+    /* Orb States */
+    .golden-orb-widget[data-state="listening"] .orb-core {
+      transform: scale(1.1);
+      box-shadow: 0 0 45px var(--gold-glow), 0 0 90px rgba(245, 176, 65, 0.6);
+    }
+    .golden-orb-widget[data-state="listening"] .orb-pulse-wave {
+      animation: soundWave 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+    }
+
+    .golden-orb-widget[data-state="thinking"] .orb-core {
+      animation: spinEnergy 1.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+      box-shadow: 0 0 35px var(--accent-cyan), 0 0 70px rgba(56, 189, 248, 0.45);
+      background: radial-gradient(circle at 35% 30%, #e0f2fe 0%, #38bdf8 30%, #f5b041 70%, #92400e 100%);
+    }
+
+    .golden-orb-widget[data-state="permission"] .orb-core {
+      background: radial-gradient(circle at 35% 30%, #fff1f2 0%, #fb7185 30%, #e11d48 70%, #881337 100%);
+      box-shadow: 0 0 40px rgba(225, 29, 72, 0.7), 0 0 80px rgba(225, 29, 72, 0.4);
+      animation: warningPulse 1s ease-in-out infinite;
+    }
+
+    .golden-orb-widget[data-state="speaking"] .orb-core {
+      animation: speakBounce 0.7s ease-in-out infinite alternate;
+    }
+
+    /* Permission Modal */
+    .permission-overlay-card {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 440px;
+      background: var(--bg-surface-elevated);
+      border: 1.5px solid var(--accent-red);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+      z-index: 50;
+      display: none;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .permission-overlay-card.show {
+      display: block;
+    }
+
+    .perm-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .perm-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-red);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .perm-command {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      margin: 8px 0 12px;
+      color: #ffd2d2;
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      word-break: break-all;
+    }
+
+    .perm-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn-perm {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-perm-deny {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+    .btn-perm-allow {
+      background: var(--accent-red);
+      color: #fff;
+    }
+
+    /* Live Feature Toggles Bar */
+    .capabilities-bar {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .cap-btn {
+      flex: 1;
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+
+    .cap-btn:hover {
+      border-color: var(--border-active);
+      color: var(--text-main);
+    }
+
+    .cap-btn.active-cyan {
+      background: rgba(56, 189, 248, 0.16);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .cap-btn.active-purple {
+      background: rgba(192, 132, 252, 0.16);
+      border-color: var(--accent-purple);
+      color: var(--accent-purple);
+      box-shadow: 0 0 10px rgba(192, 132, 252, 0.25);
+    }
+
+    /* State Switcher Buttons below Orb */
+    .orb-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      justify-content: center;
+    }
+
+    .control-btn {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-btn:hover {
+      border-color: var(--border-active);
+      color: var(--text-main);
+    }
+
+    .control-btn.active {
+      background: rgba(245, 176, 65, 0.15);
+      border-color: var(--gold-bright);
+      color: var(--gold-bright);
+    }
+
+    /* Right: Chat & Multi-Model Simulator */
+    .agent-chat-simulator {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 12px;
+    }
+
+    .model-select-box {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 14px;
+      background: var(--bg-surface-elevated);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .model-select-box label {
+      font-size: 0.68rem;
+      font-family: var(--font-mono);
+      color: var(--gold-bright);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .model-dropdown-styled {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .chat-stream {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 250px;
+      padding-right: 6px;
+    }
+
+    .chat-msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 90%;
+    }
+
+    .chat-msg.user { align-self: flex-end; }
+    .chat-msg.agent { align-self: flex-start; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .chat-msg.user .msg-bubble {
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+      border-bottom-right-radius: 2px;
+    }
+
+    .chat-msg.agent .msg-bubble {
+      background: rgba(245, 176, 65, 0.08);
+      color: var(--text-main);
+      border: 1px solid var(--border-active);
+      border-bottom-left-radius: 2px;
+    }
+
+    .memory-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      width: fit-content;
+      margin-top: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .chat-input {
+      flex: 1;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-size: 0.82rem;
+      outline: none;
+    }
+
+    .chat-input:focus { border-color: var(--gold-bright); }
+
+    .btn-send {
+      background: var(--gold-primary);
+      border: none;
+      color: #0c0e14;
+      font-weight: 700;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.82rem;
+    }
+
+    .btn-send:hover { background: var(--gold-bright); }
+
+    /* Architecture Flow Diagram */
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin: 36px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .diagram-container {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      padding: 28px;
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+
+    .diagram-svg {
+      width: 100%;
+      min-width: 860px;
+      height: auto;
+      display: block;
+    }
+
+    /* Keyframes */
+    @keyframes floatOrb {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-14px); }
+    }
+    @keyframes floatSubtle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 25px var(--gold-glow), 0 0 50px rgba(245, 176, 65, 0.2); }
+      100% { box-shadow: 0 0 40px var(--gold-glow), 0 0 80px rgba(245, 176, 65, 0.45); }
+    }
+    @keyframes rotateRing {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes radarScan {
+      0% { transform: rotate(0deg) scale(0.9); opacity: 0.4; }
+      50% { transform: rotate(180deg) scale(1.15); opacity: 0.9; }
+      100% { transform: rotate(360deg) scale(0.9); opacity: 0.4; }
+    }
+    @keyframes soundWave {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    @keyframes spinEnergy {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.1); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+    @keyframes warningPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    @keyframes speakBounce {
+      0% { transform: scale(1) translateY(0); }
+      100% { transform: scale(1.12) translateY(-8px); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translate(-50%, 20px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <div class="brand">
+        <div class="brand-orb-icon"></div>
+        <div>
+          <h1>AURA-1 : Multi-Model Agent with Vision & Autonomous Roam</h1>
+        </div>
+        <span class="badge-rust">Rust + Tauri v2 Core</span>
+      </div>
+
+      <div class="theme-controls">
+        <button class="theme-btn active" onclick="setTheme('dark')">🌙 Dark Mode</button>
+        <button class="theme-btn" onclick="setTheme('light')">☀️ Light Mode</button>
+        <button class="theme-btn" onclick="setTheme('glass')">🪟 Windows Mica Glass</button>
+      </div>
+    </header>
+
+    <div class="hero-split">
+      <!-- Left: Interactive Golden Orb Preview -->
+      <div class="interactive-stage">
+        <div class="stage-header">
+          <div class="stage-title">
+            <span class="state-indicator" id="stateLed"></span>
+            <span id="stateLabel">Interactive Golden Orb : Idle State</span>
+          </div>
+          <span style="font-size: 0.72rem; color: var(--gold-bright); font-family: var(--font-mono);">
+            60 FPS • GPU Accelerated
+          </span>
+        </div>
+
+        <div class="orb-canvas-container" id="stageCanvas">
+          <div class="vision-radar-sweep" id="visionRadarSweep"></div>
+
+          <!-- The Golden Orb -->
+          <div class="golden-orb-widget" id="goldenOrb" data-state="idle">
+            <div class="orb-ring"></div>
+            <div class="orb-pulse-wave"></div>
+            <div class="orb-core"></div>
+          </div>
+
+          <!-- Permission Confirmation Modal -->
+          <div class="permission-overlay-card" id="permModal">
+            <div class="perm-header">
+              <span style="font-size: 1.2rem;">⚠️</span>
+              <span class="perm-title">Security Guardrail : Write Authorization</span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">
+              AURA-1 wants to execute an OS mutation command:
+            </p>
+            <div class="perm-command" id="permCommandText">
+              fs::write("C:/Users/rafey/Project 7/notes.txt", "Updated project memory")
+            </div>
+            <div class="perm-actions">
+              <button class="btn-perm btn-perm-deny" onclick="resolvePermission(false)">Deny Action</button>
+              <button class="btn-perm btn-perm-allow" onclick="resolvePermission(true)">Allow Write</button>
+            </div>
+          </div>
+
+          <div class="desktop-hint">✦ Drag the Orb • Toggle Vision & Roaming below</div>
+        </div>
+
+        <!-- Capability Toggles: Vision & Roaming -->
+        <div class="capabilities-bar">
+          <button class="cap-btn" id="btnVisionToggle" onclick="toggleVisionDemo()">
+            <span>👁️</span> Screen Vision: <b id="visionStatusText">OFF</b>
+          </button>
+          <button class="cap-btn" id="btnRoamToggle" onclick="toggleRoamDemo()">
+            <span>🚀</span> Autonomous Roam: <b id="roamStatusText">OFF</b>
+          </button>
+        </div>
+
+        <!-- State Switcher Controls -->
+        <div class="orb-controls">
+          <button class="control-btn active" onclick="setOrbState('idle')">✨ Idle Hover</button>
+          <button class="control-btn" onclick="setOrbState('listening')">🎙️ Listening</button>
+          <button class="control-btn" onclick="setOrbState('thinking')">🧠 ChromaDB Query</button>
+          <button class="control-btn" onclick="setOrbState('speaking')">🔊 Speaking</button>
+          <button class="control-btn" style="border-color: rgba(248, 113, 113, 0.4);" onclick="triggerPermissionDemo()">🛡️ Permission Alert</button>
+        </div>
+      </div>
+
+      <!-- Right: Model Switcher & Real-time Chat Simulator -->
+      <div class="agent-chat-simulator">
+        <div class="chat-header">
+          <h3 style="font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+            <span>💬</span> Dialogue & Memory Pipeline
+          </h3>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-family: var(--font-mono); color: var(--accent-green);">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green);"></div>
+            ChromaDB Active
+          </div>
+        </div>
+
+        <!-- Model Selector Variable Dropdown -->
+        <div class="model-select-box">
+          <label for="previewModelSelect">Select Active AI Model:</label>
+          <select id="previewModelSelect" class="model-dropdown-styled" onchange="switchModel(this.value)">
+            <option value="qwen2.5:1.5b" selected>⚡ qwen2.5:1.5b (Local Ollama on your PC - Fast & Free)</option>
+            <option value="claude-3-5-sonnet">🧠 Claude 3.5 Sonnet (Cloud - Screen Vision + Computer Use)</option>
+            <option value="gpt-4o">🌐 OpenAI GPT-4o (Cloud Multimodal)</option>
+            <option value="gemini-1.5-pro">💎 Google Gemini 1.5 Pro (Cloud Long Context)</option>
+          </select>
+        </div>
+
+        <div class="chat-stream" id="chatStream">
+          <div class="chat-msg agent">
+            <div class="msg-bubble">
+              Hello! I am AURA-1. My active model is set to <strong>qwen2.5:1.5b</strong> (running on your local Ollama). I can see your screen, roam across your desktop, remember your preferences in <strong>ChromaDB</strong>, and ask permission before any write action!
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" class="chat-input" placeholder="Say hello or ask to inspect your screen..." onkeydown="if(event.key === 'Enter') handleSendChat()">
+          <button class="btn-send" onclick="handleSendChat()">Talk</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Architecture Diagram -->
+    <h2 class="section-title">
+      <span>📐</span> Full System Architecture Flow (Vision + Movement + ChromaDB)
+    </h2>
+
+    <div class="diagram-container">
+      <svg class="diagram-svg" viewBox="0 0 1140 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ffeaa7"/>
+            <stop offset="100%" stop-color="#f5b041"/>
+          </linearGradient>
+          <filter id="shadowFilter" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+          </filter>
+        </defs>
+
+        <!-- Stage 1: UI Layer -->
+        <g filter="url(#shadowFilter)">
+          <rect x="30" y="30" width="260" height="440" rx="16" fill="#141722" stroke="#f5b041" stroke-width="1.5"/>
+          <text x="160" y="65" fill="#f5b041" font-size="13" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans'">LAYER 1: DESKTOP UI</text>
+          <text x="160" y="82" fill="#8e9bb5" font-size="10.5" text-anchor="middle" font-family="'JetBrains Mono'">Tauri v2 + WebGL Golden Orb</text>
+          
+          <circle cx="160" cy="160" r="40" fill="url(#goldGrad)"/>
+          <text x="160" y="220" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">Golden Hovering Orb</text>
+
+          <rect x="55" y="245" width="210" height="40" rx="8" fill="#1c2130" stroke="rgba(56, 189, 248, 0.4)"/>
+          <text x="160" y="270" fill="#38bdf8" font-size="11" font-weight="600" text-anchor="middle">👁️ Screen Vision Radar</text>
+
+          <rect x="55" y="295" width="210" height="40" rx="8" fill="#1c2130" stroke="rgba(192, 132, 252, 0.4)"/>
+          <text x="160" y="320" fill="#c084fc" font-size="11" font-weight="600" text-anchor="middle">🚀 Autonomous Roaming</text>
+
+          <rect x="55" y="345" width="210" height="40" rx="8" fill="#1c2130" stroke="rgba(255, 215, 0, 0.3)"/>
+          <text x="160" y="370" fill="#ffd449" font-size="11" font-weight="600" text-anchor="middle">🎛️ Active Model Switcher</text>
+
+          <rect x="55" y="395" width="210" height="45" rx="8" fill="rgba(225,29,72,0.15)" stroke="#fb7185"/>
+          <text x="160" y="422" fill="#fb7185" font-size="11" font-weight="700" text-anchor="middle">⚠️ Permission Modal (Write)</text>
+        </g>
+
+        <!-- Connecting Arrow -->
+        <path d="M290 230 L360 230" stroke="#f5b041" stroke-width="2"/>
+
+        <!-- Stage 2: Rust Core Engine -->
+        <g filter="url(#shadowFilter)">
+          <rect x="360" y="30" width="370" height="440" rx="16" fill="#141722" stroke="#d63031" stroke-width="1.5"/>
+          <text x="545" y="65" fill="#ff7675" font-size="13" font-weight="700" text-anchor="middle" font-family="'Plus Jakarta Sans'">LAYER 2: RUST CORE ENGINE</text>
+          <text x="545" y="82" fill="#8e9bb5" font-size="10.5" text-anchor="middle" font-family="'JetBrains Mono'">Tokio Async Runtime • Zero GC</text>
+
+          <!-- Module: Multi-Model LLM Engine -->
+          <rect x="385" y="105" width="320" height="60" rx="10" fill="#1c2130" stroke="rgba(255, 215, 0, 0.3)"/>
+          <text x="545" y="130" fill="#f5b041" font-size="11.5" font-weight="700" text-anchor="middle">Multi-Model Engine (llm.rs)</text>
+          <text x="545" y="148" fill="#8e9bb5" font-size="9.5" text-anchor="middle">Local Ollama (qwen2.5:1.5b) + Claude + GPT-4o + Gemini</text>
+
+          <!-- Module: Vision Engine -->
+          <rect x="385" y="175" width="320" height="55" rx="10" fill="#1c2130" stroke="rgba(56, 189, 248, 0.4)"/>
+          <text x="545" y="198" fill="#38bdf8" font-size="11.5" font-weight="700" text-anchor="middle">Screen Vision Engine (vision.rs)</text>
+          <text x="545" y="215" fill="#8e9bb5" font-size="9.5" text-anchor="middle">Fast xcap screen capture + JPEG base64 compression</text>
+
+          <!-- Module: Movement Engine -->
+          <rect x="385" y="240" width="320" height="55" rx="10" fill="#1c2130" stroke="rgba(192, 132, 252, 0.4)"/>
+          <text x="545" y="263" fill="#c084fc" font-size="11.5" font-weight="700" text-anchor="middle">Movement Engine (movement.rs)</text>
+          <text x="545" y="280" fill="#8e9bb5" font-size="9.5" text-anchor="middle">Orb desktop roaming + enigo mouse/keyboard control</text>
+
+          <!-- Module: ChromaDB Memory -->
+          <rect x="385" y="305" width="320" height="55" rx="10" fill="#1c2130" stroke="rgba(52, 211, 153, 0.4)"/>
+          <text x="545" y="328" fill="#34d399" font-size="11.5" font-weight="700" text-anchor="middle">ChromaDB Memory Connector (memory.rs)</text>
+          <text x="545" y="345" fill="#8e9bb5" font-size="9.5" text-anchor="middle">Automatic fact extractor & semantic context retrieval</text>
+
+          <!-- Module: Security Guardrail -->
+          <rect x="385" y="370" width="320" height="55" rx="10" fill="rgba(225, 29, 72, 0.12)" stroke="#f87171"/>
+          <text x="545" y="393" fill="#f87171" font-size="11.5" font-weight="700" text-anchor="middle">🛡️ Security Permission Interceptor</text>
+          <text x="545" y="410" fill="#fca5a5" font-size="9.5" text-anchor="middle">Read: Auto-allowed | Write / Shell: Pauses for Approval</text>
+        </g>
+
+        <!-- Connecting Arrows -->
+        <path d="M730 135 L800 135" stroke="#f5b041" stroke-width="2"/>
+        <path d="M730 200 L800 200" stroke="#38bdf8" stroke-width="2"/>
+        <path d="M730 330 L800 330" stroke="#34d399" stroke-width="2"/>
+        <path d="M730 400 L800 400" stroke="#f87171" stroke-width="2"/>
+
+        <!-- Stage 3: External Integrations -->
+        <g filter="url(#shadowFilter)">
+          <!-- Ollama Local & Cloud -->
+          <rect x="800" y="95" width="300" height="75" rx="12" fill="#141722" stroke="#f5b041" stroke-width="1.5"/>
+          <text x="950" y="122" fill="#f5b041" font-size="12" font-weight="700" text-anchor="middle">AI Models (Local & Cloud)</text>
+          <text x="950" y="140" fill="#34d399" font-size="10" text-anchor="middle">✓ Ollama: qwen2.5:1.5b (Live on Port 11434)</text>
+          <text x="950" y="155" fill="#8e9bb5" font-size="9.5" text-anchor="middle">Claude 3.5 Sonnet | GPT-4o | Gemini</text>
+
+          <!-- Desktop & OS Screen Vision -->
+          <rect x="800" y="180" width="300" height="70" rx="12" fill="#141722" stroke="#38bdf8" stroke-width="1.5"/>
+          <text x="950" y="206" fill="#38bdf8" font-size="12" font-weight="700" text-anchor="middle">Windows OS Screen & Input</text>
+          <text x="950" y="225" fill="#f0f3fa" font-size="10" text-anchor="middle">Desktop Capture API & Mouse/Key simulation</text>
+          <text x="950" y="240" fill="#8e9bb5" font-size="9" text-anchor="middle">Panic Hotkey: Instant abort on Esc/corner</text>
+
+          <!-- ChromaDB Vector Store -->
+          <rect x="800" y="295" width="300" height="75" rx="12" fill="#141722" stroke="#34d399" stroke-width="1.5"/>
+          <text x="950" y="322" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle">ChromaDB Vector Store</text>
+          <text x="950" y="340" fill="#f0f3fa" font-size="10" text-anchor="middle">Collection: "user_personal_memory"</text>
+          <text x="950" y="356" fill="#8e9bb5" font-size="9" text-anchor="middle">Port 8000 REST API</text>
+
+          <!-- Filesystem & MCP -->
+          <rect x="800" y="380" width="300" height="70" rx="12" fill="#141722" stroke="#f87171" stroke-width="1.5"/>
+          <text x="950" y="406" fill="#f87171" font-size="12" font-weight="700" text-anchor="middle">Guarded OS Filesystem & MCP</text>
+          <text x="950" y="425" fill="#f0f3fa" font-size="10" text-anchor="middle">Filesystem / Shell / MCP stdio plugins</text>
+          <text x="950" y="440" fill="#8e9bb5" font-size="9" text-anchor="middle">Guarded by explicit User Confirmation</text>
+        </g>
+      </svg>
+    </div>
+
+  </div>
+
+  <script>
+    function setTheme(theme) {
+      document.body.setAttribute('data-theme', theme);
+      document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    const goldenOrb = document.getElementById('goldenOrb');
+    const stateLed = document.getElementById('stateLed');
+    const stateLabel = document.getElementById('stateLabel');
+    const permModal = document.getElementById('permModal');
+    const visionRadarSweep = document.getElementById('visionRadarSweep');
+    const btnVisionToggle = document.getElementById('btnVisionToggle');
+    const visionStatusText = document.getElementById('visionStatusText');
+    const btnRoamToggle = document.getElementById('btnRoamToggle');
+    const roamStatusText = document.getElementById('roamStatusText');
+
+    let isVisionOn = false;
+    let isRoamOn = false;
+    let roamAnimInterval = null;
+    let roamAngle = 0;
+    let selectedModel = 'qwen2.5:1.5b';
+
+    function switchModel(val) {
+      selectedModel = val;
+      addAgentMessage(`Active backend model switched to <strong>${val}</strong>.`);
+    }
+
+    function toggleVisionDemo() {
+      isVisionOn = !isVisionOn;
+      if (isVisionOn) {
+        visionStatusText.textContent = "ON";
+        btnVisionToggle.classList.add('active-cyan');
+        visionRadarSweep.classList.add('active');
+        addAgentMessage("👁️ <strong>Screen Vision ON:</strong> The agent is capturing your screen in real time to understand what you're looking at.");
+      } else {
+        visionStatusText.textContent = "OFF";
+        btnVisionToggle.classList.remove('active-cyan');
+        visionRadarSweep.classList.remove('active');
+        addAgentMessage("👁️ <strong>Screen Vision OFF:</strong> Vision capture paused.");
+      }
+    }
+
+    function toggleRoamDemo() {
+      isRoamOn = !isRoamOn;
+      if (isRoamOn) {
+        roamStatusText.textContent = "ON";
+        btnRoamToggle.classList.add('active-purple');
+        addAgentMessage("🚀 <strong>Autonomous Roam ON:</strong> The Golden Orb is floating and navigating smoothly across the desktop.");
+        
+        if (roamAnimInterval) clearInterval(roamAnimInterval);
+        roamAnimInterval = setInterval(() => {
+          roamAngle += 0.05;
+          const x = Math.sin(roamAngle) * 90;
+          const y = Math.cos(roamAngle * 2) * 50;
+          goldenOrb.style.transform = `translate(${x}px, ${y}px)`;
+        }, 60);
+      } else {
+        roamStatusText.textContent = "OFF";
+        btnRoamToggle.classList.remove('active-purple');
+        if (roamAnimInterval) clearInterval(roamAnimInterval);
+        goldenOrb.style.transform = `translate(0px, 0px)`;
+        addAgentMessage("🚀 <strong>Autonomous Roam OFF:</strong> The Golden Orb has docked in stationary position.");
+      }
+    }
+
+    function setOrbState(state) {
+      goldenOrb.setAttribute('data-state', state);
+      document.querySelectorAll('.control-btn').forEach(btn => btn.classList.remove('active'));
+      
+      if (state === 'idle') {
+        stateLabel.textContent = `Interactive Golden Orb : Idle State (${selectedModel})`;
+        stateLed.style.background = "var(--gold-primary)";
+        permModal.classList.remove('show');
+      } else if (state === 'listening') {
+        stateLabel.textContent = "Golden Orb : Listening to Voice...";
+        stateLed.style.background = "var(--gold-bright)";
+        permModal.classList.remove('show');
+      } else if (state === 'thinking') {
+        stateLabel.textContent = `Golden Orb : Querying ${selectedModel} & ChromaDB...`;
+        stateLed.style.background = "var(--accent-cyan)";
+        permModal.classList.remove('show');
+      } else if (state === 'speaking') {
+        stateLabel.textContent = "Golden Orb : Speaking Response...";
+        stateLed.style.background = "var(--gold-bright)";
+        permModal.classList.remove('show');
+      }
+    }
+
+    function triggerPermissionDemo() {
+      goldenOrb.setAttribute('data-state', 'permission');
+      stateLabel.textContent = "Security Guardrail : Write Authorization Required!";
+      stateLed.style.background = "var(--accent-red)";
+      permModal.classList.add('show');
+    }
+
+    function resolvePermission(allowed) {
+      permModal.classList.remove('show');
+      if (allowed) {
+        setOrbState('thinking');
+        setTimeout(() => {
+          setOrbState('speaking');
+          addAgentMessage("Permission granted! I executed the write action safely.", false);
+          setTimeout(() => setOrbState('idle'), 3000);
+        }, 1200);
+      } else {
+        setOrbState('idle');
+        addAgentMessage("Action cancelled. No system files were modified without your consent.", false);
+      }
+    }
+
+    function handleSendChat() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      addUserMessage(text);
+      input.value = '';
+
+      const lower = text.toLowerCase();
+      if (lower.includes('write') || lower.includes('create file') || lower.includes('delete') || lower.includes('save')) {
+        setOrbState('thinking');
+        setTimeout(() => {
+          document.getElementById('permCommandText').textContent = `fs::write("C:/Users/rafey/Project 7/${text.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 15)}.txt", "Data payload")`;
+          triggerPermissionDemo();
+        }, 800);
+        return;
+      }
+
+      setOrbState('thinking');
+      setTimeout(() => {
+        setOrbState('speaking');
+        let visionInfo = isVisionOn ? " [Screen Seen: Active Desktop Frame Analyzed]" : "";
+        addAgentMessage(`[${selectedModel}] I received your message and indexed key context in ChromaDB.${visionInfo} How can I assist you further?`, true, `User said: "${text.slice(0, 30)}..."`);
+        setTimeout(() => setOrbState('idle'), 3500);
+      }, 1200);
+    }
+
+    function addUserMessage(text) {
+      const stream = document.getElementById('chatStream');
+      const div = document.createElement('div');
+      div.className = 'chat-msg user';
+      div.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
+      stream.appendChild(div);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    function addAgentMessage(text, hasMemory, memoryText) {
+      const stream = document.getElementById('chatStream');
+      const div = document.createElement('div');
+      div.className = 'chat-msg agent';
+      let memoryBadgeHtml = '';
+      if (hasMemory && memoryText) {
+        memoryBadgeHtml = `<div class="memory-badge"><span>💾 Stored in ChromaDB:</span> "${escapeHtml(memoryText)}"</div>`;
+      }
+      div.innerHTML = `<div class="msg-bubble">${text}</div>${memoryBadgeHtml}`;
+      stream.appendChild(div);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>

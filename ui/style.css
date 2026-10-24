@@ -1,0 +1,456 @@
+:root {
+  /* Dynamic Palette Tokens (defaults to reference image: iridescent sky blue to purple magenta) */
+  --orb-gradient-top: #a5f3fc;
+  --orb-gradient-mid: #60a5fa;
+  --orb-gradient-base: #a855f7;
+  --orb-rim-primary: #38bdf8;
+  --orb-rim-secondary: #c084fc;
+  --orb-glow: rgba(96, 165, 250, 0.55);
+  --orb-ambient: rgba(168, 85, 247, 0.35);
+
+  --eye-color: #ffffff;
+  --eye-glow: rgba(255, 255, 255, 0.95);
+  --eye-ambient-glow: rgba(232, 121, 249, 0.85);
+
+  --accent-dot: #38bdf8;
+  --pill-bg: rgba(15, 23, 42, 0.85);
+  --pill-border: rgba(96, 165, 250, 0.3);
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body {
+  background: transparent !important;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.orb-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  cursor: grab;
+}
+
+.orb-container:active {
+  cursor: grabbing;
+}
+
+/* 1. Dynamic Acoustic Aura Stage */
+.aura-stage {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.aura-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid var(--orb-rim-primary);
+  opacity: 0.22;
+  pointer-events: none;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ring-inner {
+  width: 155px;
+  height: 155px;
+  animation: pulseAura 3.6s ease-in-out infinite;
+}
+
+.ring-mid {
+  width: 195px;
+  height: 195px;
+  border-style: dashed;
+  animation: rotateRing 24s linear infinite, pulseAura 4.8s ease-in-out infinite 0.5s;
+  opacity: 0.16;
+}
+
+.ring-outer {
+  width: 230px;
+  height: 230px;
+  animation: pulseAura 5.5s ease-in-out infinite 1.2s;
+  border-color: var(--orb-rim-secondary);
+  opacity: 0.1;
+}
+
+/* 2. The Translucent Squinting Orb Sphere */
+.squinting-orb {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+  transform: translateZ(0);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+  animation: floatOrb 4s ease-in-out infinite alternate;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.squinting-orb:hover {
+  transform: scale(1.06);
+}
+
+/* Base vibrant sphere backdrop with 3D spherical shading */
+.orb-backdrop {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 25%, 
+    var(--orb-gradient-top) 0%, 
+    var(--orb-gradient-mid) 42%, 
+    var(--orb-gradient-base) 85%, 
+    rgba(147, 51, 234, 0.95) 100%
+  );
+  box-shadow: 
+    inset 0 0 20px rgba(255, 255, 255, 0.6),
+    inset -10px -15px 25px rgba(0, 0, 0, 0.35),
+    0 10px 30px var(--orb-ambient),
+    0 0 45px var(--orb-glow);
+  transition: background 0.8s ease, box-shadow 0.8s ease;
+}
+
+/* Translucent iridescent rim glow */
+.orb-rim-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 
+    0 0 15px var(--orb-rim-primary),
+    inset 0 0 10px rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* Main top-left glass specular highlight */
+.specular-highlight.primary-glint {
+  position: absolute;
+  top: 9%;
+  left: 20%;
+  width: 50px;
+  height: 25px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 72%);
+  transform: rotate(-35deg);
+  pointer-events: none;
+  filter: blur(0.5px);
+}
+
+.specular-highlight.secondary-glint {
+  position: absolute;
+  top: 24%;
+  left: 24%;
+  width: 10px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+  filter: blur(0.2px);
+}
+
+/* Bottom-right crescent reflection sheen */
+.sub-rim-glint {
+  position: absolute;
+  bottom: 8%;
+  right: 18%;
+  width: 45px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.4) 0%, transparent 75%);
+  transform: rotate(-25deg);
+  pointer-events: none;
+}
+
+/* Core pulsating energy glow */
+.core-energy {
+  position: absolute;
+  inset: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+  animation: energyBreathe 3s ease-in-out infinite alternate;
+}
+
+/* 3. Glowing Squinting Digital Eyes (">" and "<") */
+.squint-eyes {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 76px;
+  height: 40px;
+  pointer-events: none;
+  transition: transform 0.2s ease, filter 0.3s ease;
+}
+
+.eye {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--eye-color);
+  filter: 
+    drop-shadow(0 0 4px #ffffff)
+    drop-shadow(0 0 10px var(--eye-glow))
+    drop-shadow(0 0 18px var(--eye-ambient-glow));
+  transition: transform 0.15s ease, filter 0.3s ease;
+}
+
+.chevron-svg {
+  width: 100%;
+  height: 100%;
+  stroke: var(--eye-color);
+}
+
+/* 4. ANIMATION STATES & TALKING SYNC */
+
+/* State: Idle (Soft breathing, gentle eye squint blinks) */
+.squinting-orb[data-state="idle"] .squint-eyes {
+  animation: eyeBlink 5s ease-in-out infinite;
+}
+
+/* State: Listening (Focused wide squint, luminous aura) */
+.squinting-orb[data-state="listening"] {
+  animation: floatOrb 3s ease-in-out infinite alternate;
+  box-shadow: 0 0 35px var(--orb-glow);
+}
+
+.squinting-orb[data-state="listening"] .ring-inner {
+  opacity: 0.4;
+  transform: scale(1.08);
+}
+
+.squinting-orb[data-state="listening"] .squint-eyes {
+  transform: scale(1.02);
+  filter: 
+    drop-shadow(0 0 6px #ffffff)
+    drop-shadow(0 0 14px var(--eye-glow))
+    drop-shadow(0 0 24px var(--eye-ambient-glow));
+}
+
+/* State: Thinking / Processing (Spinning pulse, eyes squinching narrower) */
+.squinting-orb[data-state="thinking"] {
+  animation: thinkingJitter 1.2s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="thinking"] .squint-eyes {
+  animation: thinkingEyes 0.9s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="thinking"] .ring-mid {
+  animation: rotateRing 4s linear infinite;
+  opacity: 0.35;
+}
+
+/* State: Speaking / Talking (SYNCHRONIZED EYE-SQUINTING & PULSE TALKING ANIMATION) */
+.squinting-orb[data-state="speaking"] {
+  animation: talkingOrbPulse 0.45s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="speaking"] .squint-eyes {
+  animation: talkingEyesSquint 0.35s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="speaking"] .left-eye {
+  animation: mouthWaveLeft 0.3s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="speaking"] .right-eye {
+  animation: mouthWaveRight 0.3s ease-in-out infinite alternate;
+}
+
+.squinting-orb[data-state="speaking"] .ring-inner {
+  animation: ringAudioReact 0.35s ease-in-out infinite alternate;
+  opacity: 0.55;
+}
+
+.squinting-orb[data-state="speaking"] .ring-outer {
+  animation: ringAudioReact 0.5s ease-in-out infinite alternate 0.1s;
+  opacity: 0.35;
+}
+
+/* 5. Live Floating Speech Pill */
+.speech-pill {
+  max-width: 440px;
+  min-width: 200px;
+  background: var(--pill-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--pill-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 18px var(--orb-glow);
+  border-radius: 24px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(12px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
+  z-index: 50;
+}
+
+.speech-pill.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-dot);
+  box-shadow: 0 0 10px var(--accent-dot);
+  flex-shrink: 0;
+  animation: statusPulse 1.8s infinite;
+}
+
+.speech-content {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.speech-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-dot);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.speech-text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #f8fafc;
+  word-break: break-word;
+  max-height: 58px;
+  overflow-y: auto;
+}
+
+.speech-text::-webkit-scrollbar {
+  width: 0;
+}
+
+/* Keyframe Animations */
+@keyframes floatOrb {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(-7px); }
+}
+
+@keyframes pulseAura {
+  0%, 100% { transform: scale(1); opacity: 0.22; }
+  50% { transform: scale(1.08); opacity: 0.38; }
+}
+
+@keyframes rotateRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes energyBreathe {
+  0% { opacity: 0.3; transform: scale(0.95); }
+  100% { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* Squint blinking animation when idle */
+@keyframes eyeBlink {
+  0%, 46%, 52%, 100% {
+    transform: scaleX(1) scaleY(1);
+  }
+  48%, 50% {
+    transform: scaleX(1.15) scaleY(0.2);
+  }
+}
+
+/* Talking eye squinting synchronization */
+@keyframes talkingEyesSquint {
+  0% {
+    transform: scaleX(0.9) scaleY(0.85);
+  }
+  50% {
+    transform: scaleX(1.12) scaleY(1.22);
+  }
+  100% {
+    transform: scaleX(0.82) scaleY(0.7);
+  }
+}
+
+@keyframes mouthWaveLeft {
+  0% { transform: translateX(0px) scale(0.95); }
+  50% { transform: translateX(-2px) scale(1.1); }
+  100% { transform: translateX(1px) scale(0.9); }
+}
+
+@keyframes mouthWaveRight {
+  0% { transform: translateX(0px) scale(0.95); }
+  50% { transform: translateX(2px) scale(1.1); }
+  100% { transform: translateX(-1px) scale(0.9); }
+}
+
+@keyframes talkingOrbPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 30px var(--orb-glow), 0 0 50px var(--orb-ambient);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 55px var(--orb-glow), 0 0 85px var(--orb-ambient);
+  }
+  100% {
+    transform: scale(0.98);
+    box-shadow: 0 0 35px var(--orb-glow), 0 0 60px var(--orb-ambient);
+  }
+}
+
+@keyframes ringAudioReact {
+  0% { transform: scale(0.96); opacity: 0.25; }
+  100% { transform: scale(1.18); opacity: 0.6; }
+}
+
+@keyframes thinkingJitter {
+  0% { transform: translateY(0px) rotate(-1deg); }
+  100% { transform: translateY(-4px) rotate(1deg); }
+}
+
+@keyframes thinkingEyes {
+  0% { transform: scaleX(0.85) scaleY(0.9); }
+  100% { transform: scaleX(1.1) scaleY(0.8); }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}

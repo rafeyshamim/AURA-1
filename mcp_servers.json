@@ -1,0 +1,22 @@
+{
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\rafey\\OneDrive\\Desktop\\Project 7"],
+      "transport": "stdio"
+    },
+    "brave_search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": ""
+      },
+      "transport": "stdio"
+    },
+    "custom_python_tools": {
+      "command": "python",
+      "args": ["plugins/custom_tools.py"],
+      "transport": "stdio"
+    }
+  }
+}

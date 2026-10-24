@@ -1,0 +1,14 @@
+{
+  "name": "aura-desktop-agent",
+  "version": "0.1.0",
+  "description": "Personal AI Desktop Agent with Golden Orb GUI, ChromaDB Memory, and MCP Extensibility",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "cross-env CARGO_TARGET_DIR=C:/Users/rafey/.cargo_cache/project7_target tauri dev",
+    "build": "cross-env CARGO_TARGET_DIR=C:/Users/rafey/.cargo_cache/project7_target tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "cross-env": "^7.0.3"
+  }
+}

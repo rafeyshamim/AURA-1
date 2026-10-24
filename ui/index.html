@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURA-1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-tauri-drag-region>
+
+  <!-- Complete Minimal Translucent Squinting Orb Desktop Interface -->
+  <div class="orb-container" id="orbContainer" data-tauri-drag-region>
+    
+    <!-- Multi-Layered Dynamic Acoustic Aura Stage -->
+    <div class="aura-stage" data-tauri-drag-region>
+      <div class="aura-ring ring-outer" id="ringOuter" data-tauri-drag-region></div>
+      <div class="aura-ring ring-mid" id="ringMid" data-tauri-drag-region></div>
+      <div class="aura-ring ring-inner" id="ringInner" data-tauri-drag-region></div>
+
+      <!-- The Translucent Bubble Orb with Squinting Eyes -->
+      <div class="squinting-orb" id="squintingOrb" data-state="listening" data-tauri-drag-region title="AURA-1: Always Listening">
+        
+        <!-- Bubble Light Gradients & Sheen (matches reference image) -->
+        <div class="orb-backdrop" data-tauri-drag-region></div>
+        <div class="orb-rim-glow" data-tauri-drag-region></div>
+        <div class="specular-highlight primary-glint" data-tauri-drag-region></div>
+        <div class="specular-highlight secondary-glint" data-tauri-drag-region></div>
+        <div class="sub-rim-glint" data-tauri-drag-region></div>
+
+        <!-- The Glowing Squinting Chevrons (">" and "<") Center Eyes -->
+        <div class="squint-eyes" id="squintEyes" data-tauri-drag-region>
+          <div class="eye left-eye" data-tauri-drag-region>
+            <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="12,10 26,20 12,30" />
+            </svg>
+          </div>
+          <div class="eye right-eye" data-tauri-drag-region>
+            <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="28,10 14,20 28,30" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dynamic reactive inner core energy -->
+        <div class="core-energy" data-tauri-drag-region></div>
+      </div>
+    </div>
+
+    <!-- Live Floating Subtitle Pill (Hidden by default, smoothly shows on speech/interaction) -->
+    <div class="speech-pill" id="speechPill" data-tauri-drag-region>
+      <div class="status-indicator" id="statusDot"></div>
+      <div class="speech-content" id="speechContent" data-tauri-drag-region>
+        <span class="speech-badge" id="speechBadge">AURA-1</span>
+        <span class="speech-text" id="speechText"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="orb.js"></script>
+</body>
+</html>
