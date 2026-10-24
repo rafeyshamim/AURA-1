@@ -9,37 +9,44 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body data-tauri-drag-region>
+<body>
 
   <!-- Complete Minimal Translucent Squinting Orb Desktop Interface -->
-  <div class="orb-container" id="orbContainer" data-tauri-drag-region>
+  <main class="app-shell" id="appShell">
+    <header class="app-header" id="dragHandle" data-tauri-drag-region>
+      <div class="brand-mark">A</div>
+      <div class="brand-copy"><strong>AURA</strong><span>DESKTOP COMPANION</span></div>
+      <button class="icon-button" id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel" title="Open chat">☰</button>
+    </header>
+
+  <div class="orb-container" id="orbContainer">
     
     <!-- Multi-Layered Dynamic Acoustic Aura Stage -->
-    <div class="aura-stage" data-tauri-drag-region>
-      <div class="aura-ring ring-outer" id="ringOuter" data-tauri-drag-region></div>
-      <div class="aura-ring ring-mid" id="ringMid" data-tauri-drag-region></div>
-      <div class="aura-ring ring-inner" id="ringInner" data-tauri-drag-region></div>
+    <div class="aura-stage" id="auraStage">
+      <div class="aura-ring ring-outer" id="ringOuter"></div>
+      <div class="aura-ring ring-mid" id="ringMid"></div>
+      <div class="aura-ring ring-inner" id="ringInner"></div>
 
       <!-- The Translucent Bubble Orb with Squinting Eyes -->
-      <div class="squinting-orb" id="squintingOrb" data-state="listening" data-tauri-drag-region title="AURA-1: Always Listening">
+      <button class="squinting-orb" id="squintingOrb" data-state="idle" type="button" title="Open AURA chat" aria-label="Open AURA chat">
         
         <!-- Bubble Light Gradients & Sheen (matches reference image) -->
-        <div class="orb-backdrop" data-tauri-drag-region></div>
-        <div class="orb-rim-glow" data-tauri-drag-region></div>
-        <div class="specular-highlight primary-glint" data-tauri-drag-region></div>
-        <div class="specular-highlight secondary-glint" data-tauri-drag-region></div>
-        <div class="sub-rim-glint" data-tauri-drag-region></div>
+        <div class="orb-backdrop"></div>
+        <div class="orb-rim-glow"></div>
+        <div class="specular-highlight primary-glint"></div>
+        <div class="specular-highlight secondary-glint"></div>
+        <div class="sub-rim-glint"></div>
 
         <!-- The Glowing Digital Face: Eyes + Animated Speaking Mouth -->
-        <div class="orb-face" id="orbFace" data-tauri-drag-region>
+        <div class="orb-face" id="orbFace">
           <!-- Squinting Chevrons (">" and "<") Center Eyes -->
-          <div class="squint-eyes" id="squintEyes" data-tauri-drag-region>
-            <div class="eye left-eye" data-tauri-drag-region>
+          <div class="squint-eyes" id="squintEyes">
+            <div class="eye left-eye">
               <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="12,10 26,20 12,30" />
               </svg>
             </div>
-            <div class="eye right-eye" data-tauri-drag-region>
+            <div class="eye right-eye">
               <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="28,10 14,20 28,30" />
               </svg>
@@ -47,26 +54,42 @@
           </div>
 
           <!-- Animated Talking Mouth (simulates real agent speaking) -->
-          <div class="agent-mouth" id="agentMouth" data-tauri-drag-region>
-            <div class="mouth-shape" data-tauri-drag-region></div>
+          <div class="agent-mouth" id="agentMouth">
+            <div class="mouth-shape"></div>
           </div>
         </div>
 
         <!-- Dynamic reactive inner core energy -->
-        <div class="core-energy" data-tauri-drag-region></div>
+        <div class="core-energy"></div>
+      </button>
+
+      <div class="orb-caption"><strong id="stateLabel">Ready when you are</strong><span id="stateHint">Click the orb or open chat to start</span></div>
+      <div class="quick-controls">
+        <label class="theme-control" for="themeSelect"><span>ORB COLOR</span><select id="themeSelect" aria-label="Orb color">
+          <option value="default">Aurora</option><option value="blue">Blue</option><option value="purple">Purple</option><option value="violet">Violet</option><option value="green">Green</option><option value="emerald">Emerald</option><option value="gold">Gold</option><option value="yellow">Yellow</option><option value="orange">Orange</option><option value="red">Red</option><option value="pink">Pink</option><option value="cyan">Cyan</option><option value="white">White</option>
+        </select></label>
+        <button class="text-control" id="motionToggle" type="button" aria-pressed="false">Motion: on</button>
       </div>
     </div>
 
     <!-- Live Floating Subtitle Pill (Hidden by default, smoothly shows on speech/interaction) -->
-    <div class="speech-pill" id="speechPill" data-tauri-drag-region>
+    <div class="speech-pill" id="speechPill">
       <div class="status-indicator" id="statusDot"></div>
-      <div class="speech-content" id="speechContent" data-tauri-drag-region>
+      <div class="speech-content" id="speechContent">
         <span class="speech-badge" id="speechBadge">AURA-1</span>
         <span class="speech-text" id="speechText"></span>
       </div>
     </div>
 
   </div>
+
+  <section class="chat-panel" id="chatPanel" aria-label="AURA chat" aria-hidden="true">
+    <div class="chat-heading"><div><strong>Talk to AURA</strong><span>Ask a question or give a command</span></div><button class="icon-button close-chat" id="closeChat" type="button" aria-label="Close chat">×</button></div>
+    <div class="messages" id="messages" role="log" aria-live="polite"><div class="message assistant-message"><span class="message-label">AURA</span><p>Hi! I’m here. What would you like to do?</p></div></div>
+    <form class="composer" id="chatForm"><textarea id="messageInput" rows="1" maxlength="4000" placeholder="Message AURA…" aria-label="Message AURA"></textarea><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
+    <div class="chat-options"><label><input id="speakAloud" type="checkbox" checked> Speak replies</label><label title="Screen actions capture a screenshot for that request and send it to your configured AI provider."><input id="enableVision" type="checkbox"> Include screen context</label></div>
+  </section>
+  </main>
 
   <script src="orb.js"></script>
 </body>

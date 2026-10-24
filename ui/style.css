@@ -123,7 +123,7 @@ html, body {
     var(--orb-gradient-top) 0%, 
     var(--orb-gradient-mid) 42%, 
     var(--orb-gradient-base) 85%, 
-    rgba(147, 51, 234, 0.95) 100%
+    var(--orb-gradient-base) 100%
   );
   box-shadow: 
     inset 0 0 20px rgba(255, 255, 255, 0.6),
@@ -285,6 +285,14 @@ html, body {
   transform: scale(1.03);
 }
 
+/* State rings live beside the orb in the DOM, so state is mirrored on the stage. */
+.aura-stage[data-state="listening"] .ring-inner { opacity: 0.45; transform: scale(1.03); }
+.aura-stage[data-state="thinking"] .ring-mid { animation: rotateRing 4s linear infinite, pulseAura 1.2s ease-in-out infinite; opacity: 0.35; }
+.aura-stage[data-state="speaking"] .ring-inner { animation: ringAudioReact 0.35s ease-in-out infinite alternate; opacity: 0.55; }
+.aura-stage[data-state="speaking"] .ring-outer { animation: ringAudioReact 0.5s ease-in-out infinite alternate 0.1s; opacity: 0.35; }
+.aura-stage.tracking-detected .ring-outer { border-color: var(--orb-rim-primary); box-shadow: 0 0 22px var(--orb-glow); animation: visionTrackingPulse 0.5s ease-in-out infinite alternate; }
+.aura-stage.gesture-triggered .ring-outer { animation: gestureRingBurst 0.65s cubic-bezier(0.16, 1, 0.3, 1) !important; }
+
 .squinting-orb[data-state="listening"] .squint-eyes {
   transform: scale(1.02);
   filter: 
@@ -440,8 +448,8 @@ html, body {
 }
 
 @keyframes rotateRing {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
 }
 
 @keyframes energyBreathe {
@@ -594,6 +602,71 @@ html, body {
   box-shadow: 0 0 22px rgba(56, 189, 248, 0.75);
   animation: visionTrackingPulse 0.5s ease-in-out infinite alternate;
 }
+
+/* Companion panel layout and responsive controls */
+html, body { min-width: 300px; min-height: 380px; }
+body { display: block; }
+.app-shell { width: 100%; height: 100%; min-height: 380px; display: flex; flex-direction: column; overflow: hidden; padding: 12px; gap: 10px; }
+.app-header { flex: 0 0 38px; display:flex; align-items:center; gap:10px; padding:0 4px; cursor:grab; }
+.app-header:active { cursor:grabbing; }
+.brand-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; color:#fff; font-weight:800; background:linear-gradient(135deg,var(--orb-gradient-mid),var(--orb-gradient-base)); box-shadow:0 0 18px var(--orb-glow); }
+.brand-copy { display:flex; flex-direction:column; gap:2px; color:#f8fafc; line-height:1; }
+.brand-copy strong { font-size:12px; letter-spacing:.12em; }
+.brand-copy span { font-family:var(--font-mono); color:#94a3b8; font-size:8px; letter-spacing:.09em; }
+.icon-button { border:1px solid rgba(148,163,184,.22); color:#e2e8f0; background:rgba(15,23,42,.72); width:34px; height:32px; border-radius:10px; cursor:pointer; font-size:17px; }
+#chatToggle { margin-left:auto; }
+.orb-container { flex:1 1 auto; min-height:0; width:100%; gap:4px; }
+.aura-stage { width:100%; height:auto; min-height:245px; margin:0; display:flex; flex-direction:column; justify-content:center; gap:6px; }
+.aura-ring { top:50%; left:50%; translate:-50% -50%; }
+.ring-inner { width:138px; height:138px; }
+.ring-mid { width:150px; height:150px; }
+.ring-outer { width:164px; height:164px; }
+.squinting-orb { flex:0 0 130px; padding:0; border:0; color:inherit; background:transparent; appearance:none; -webkit-appearance:none; z-index:1; }
+.squinting-orb:focus-visible,.icon-button:focus-visible,.text-control:focus-visible,select:focus-visible,.send-button:focus-visible { outline:2px solid var(--accent-dot); outline-offset:3px; }
+.orb-caption { display:flex; flex-direction:column; gap:4px; text-align:center; color:#f8fafc; z-index:2; }
+.orb-caption strong { font-size:13px; font-weight:700; }
+.orb-caption span { font-size:10px; color:#94a3b8; }
+.quick-controls { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:4px; z-index:2; }
+.theme-control { display:flex; align-items:center; gap:7px; border:1px solid rgba(148,163,184,.18); background:rgba(15,23,42,.68); border-radius:10px; padding:5px 9px; }
+.theme-control span { color:#94a3b8; font:9px var(--font-mono); letter-spacing:.04em; }
+.theme-control select { border:0; outline:0; color:#f8fafc; background:transparent; font:600 10px var(--font-sans); cursor:pointer; }
+.theme-control option { color:#0f172a; }
+.text-control { border:1px solid rgba(148,163,184,.18); border-radius:10px; background:rgba(15,23,42,.68); color:#cbd5e1; padding:8px 10px; font:600 10px var(--font-sans); cursor:pointer; }
+.speech-pill { position:absolute; bottom:8px; left:50%; width:min(440px,calc(100% - 28px)); min-width:0; transform:translate(-50%,12px) scale(.96); }
+.speech-pill.visible { transform:translate(-50%,0) scale(1); }
+.chat-panel { display:none; flex:1 1 0; min-height:170px; flex-direction:column; gap:10px; padding:12px; border:1px solid rgba(148,163,184,.18); border-radius:18px; background:rgba(8,15,30,.88); backdrop-filter:blur(18px); box-shadow:0 12px 36px rgba(0,0,0,.22); color:#f8fafc; }
+.app-shell.chat-open .chat-panel { display:flex; }
+.app-shell.chat-open .orb-container { flex:0 0 auto; }
+.app-shell.chat-open .aura-stage { min-height:220px; }
+.app-shell.chat-open .squinting-orb { flex-basis:112px; width:112px; height:112px; }
+.app-shell.chat-open .ring-inner { width:120px; height:120px; }
+.app-shell.chat-open .ring-mid { width:132px; height:132px; }
+.app-shell.chat-open .ring-outer { width:146px; height:146px; }
+.app-shell.chat-open .orb-caption span { display:none; }
+.chat-heading { display:flex; align-items:center; justify-content:space-between; flex:0 0 auto; }
+.chat-heading > div { display:flex; flex-direction:column; gap:3px; }
+.chat-heading strong { font-size:13px; }
+.chat-heading span { font-size:10px; color:#94a3b8; }
+.close-chat { font-size:22px; }
+.messages { display:flex; flex:1 1 auto; min-height:70px; flex-direction:column; gap:10px; overflow:auto; padding:2px 2px 6px; }
+.message { max-width:92%; padding:9px 11px; border-radius:12px; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+.message p { white-space:pre-wrap; }
+.assistant-message { align-self:flex-start; background:rgba(30,41,59,.9); border:1px solid rgba(148,163,184,.1); }
+.user-message { align-self:flex-end; background:linear-gradient(135deg,rgba(37,99,235,.75),rgba(124,58,237,.75)); }
+.message-label { display:block; margin-bottom:3px; color:var(--accent-dot); font:700 8px var(--font-mono); letter-spacing:.08em; }
+.user-message .message-label { color:#dbeafe; }
+.composer { flex:0 0 auto; display:flex; align-items:flex-end; gap:8px; padding:7px; border:1px solid rgba(148,163,184,.2); border-radius:13px; background:rgba(15,23,42,.88); }
+.composer textarea { flex:1; max-height:82px; resize:none; border:0; outline:0; background:transparent; color:#f8fafc; font:12px/1.4 var(--font-sans); user-select:text; }
+.composer textarea::placeholder { color:#64748b; }
+.send-button { flex:0 0 30px; width:30px; height:30px; border:0; border-radius:9px; background:linear-gradient(135deg,var(--orb-gradient-mid),var(--orb-gradient-base)); color:white; font-size:19px; cursor:pointer; }
+.send-button:disabled { opacity:.5; cursor:wait; }
+.chat-options { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; color:#94a3b8; font-size:9px; }
+.chat-options label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+.chat-options input { accent-color:var(--accent-dot); }
+.app-shell.chat-open .speech-pill { display:none; }
+@media (max-height:520px) { .app-shell { padding:8px; gap:4px; } .app-header { flex-basis:32px; } .aura-stage { min-height:205px; } .app-shell.chat-open .aura-stage { min-height:165px; } .app-shell.chat-open .squinting-orb { flex-basis:90px; width:90px; height:90px; } .app-shell.chat-open .ring-inner { width:98px;height:98px; } .app-shell.chat-open .ring-mid { width:108px;height:108px; } .app-shell.chat-open .ring-outer { width:120px;height:120px; } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } }
+.motion-reduced *, .motion-reduced *::before, .motion-reduced *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 
 @keyframes visionTrackingPulse {
   0% { transform: scale(1.02); opacity: 0.6; }

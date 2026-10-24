@@ -1,7 +1,6 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScreenCaptureResult {
@@ -9,114 +8,198 @@ pub struct ScreenCaptureResult {
     pub width: u32,
     pub height: u32,
     pub timestamp: i64,
+    pub foreground_process_id: u32,
+    pub foreground_window_title: String,
 }
 
 pub struct VisionEngine;
 
 impl VisionEngine {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 
-    /// Capture the primary desktop monitor using Windows native APIs via PowerShell
-    /// Returns a real JPEG screenshot as base64
+    /// Capture the primary monitor directly through Win32 GDI. This avoids
+    /// launching PowerShell, which Windows security software may block.
     pub fn capture_screen() -> Result<ScreenCaptureResult, String> {
-        let now = chrono::Utc::now().timestamp();
-
-        // Use PowerShell + .NET System.Drawing to take a real screenshot
-        let ps_script = r#"
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-$bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
-$g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-$g.Dispose()
-$ms = New-Object System.IO.MemoryStream
-$quality = [System.Drawing.Imaging.Encoder]::Quality
-$jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
-$encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
-$encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter($quality, 50)
-$bmp.Save($ms, $jpegCodec, $encoderParams)
-$bmp.Dispose()
-$bytes = $ms.ToArray()
-$ms.Dispose()
-$b64 = [Convert]::ToBase64String($bytes)
-Write-Output "$($bounds.Width)x$($bounds.Height)"
-Write-Output $b64
-"#;
-
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
-            .output()
-            .map_err(|e| format!("Failed to run screen capture: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            println!("[Vision] PowerShell screen capture failed: {}", stderr);
-            // Return a fallback tiny image so the app doesn't crash
-            return Self::fallback_capture(now);
+        let (before_process_id, before_window_title) = Self::foreground_window_info();
+        let (bgra, width, height) = native_capture::capture_primary()?;
+        let (foreground_process_id, foreground_window_title) = Self::foreground_window_info();
+        if before_process_id != foreground_process_id || before_window_title != foreground_window_title {
+            return Err("The foreground window changed while the screenshot was being captured. Please retry.".to_string());
+        }
+        let pixel_count = (width as usize)
+            .checked_mul(height as usize)
+            .ok_or_else(|| "Screen dimensions are too large.".to_string())?;
+        if bgra.len() != pixel_count.saturating_mul(4) {
+            return Err("Windows returned an incomplete screen image.".to_string());
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let lines: Vec<&str> = stdout.trim().lines().collect();
-
-        if lines.len() < 2 {
-            println!("[Vision] Unexpected output format from screen capture");
-            return Self::fallback_capture(now);
+        let mut rgb = Vec::with_capacity(pixel_count.saturating_mul(3));
+        for pixel in bgra.chunks_exact(4) {
+            rgb.extend_from_slice(&[pixel[2], pixel[1], pixel[0]]);
         }
 
-        // Parse resolution from first line (e.g. "1920x1080")
-        let resolution = lines[0].trim();
-        let (width, height) = if let Some((w, h)) = resolution.split_once('x') {
-            (
-                w.parse::<u32>().unwrap_or(1920),
-                h.parse::<u32>().unwrap_or(1080),
-            )
-        } else {
-            (1920, 1080)
-        };
-
-        // The base64 data is on the second line (may be very long)
-        let base64_image = lines[1..].join("").trim().to_string();
-
-        if base64_image.is_empty() {
-            println!("[Vision] Empty base64 from screen capture");
-            return Self::fallback_capture(now);
-        }
-
-        println!("[Vision] Screen captured: {}x{} ({} bytes b64)", width, height, base64_image.len());
+        use image::ImageEncoder;
+        let mut jpeg = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 65)
+            .write_image(&rgb, width, height, image::ExtendedColorType::Rgb8)
+            .map_err(|error| format!("Could not encode the screen image: {error}"))?;
 
         Ok(ScreenCaptureResult {
-            base64_image,
+            base64_image: BASE64.encode(jpeg),
             width,
             height,
-            timestamp: now,
+            timestamp: chrono::Utc::now().timestamp(),
+            foreground_process_id,
+            foreground_window_title,
         })
     }
 
-    /// Fallback: return a small placeholder so the system never crashes
-    fn fallback_capture(timestamp: i64) -> Result<ScreenCaptureResult, String> {
-        // Minimal valid 1x1 JPEG
-        let dummy_jpeg: Vec<u8> = vec![
-            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01,
-            0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06,
-            0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D,
-            0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12, 0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D,
-            0x1A, 0x1C, 0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28,
-            0x37, 0x29, 0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
-            0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01,
-            0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
-            0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02,
-            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01,
-            0x01, 0x00, 0x00, 0x3F, 0x00, 0xBF, 0x00, 0xFF, 0xD9
-        ];
+    fn foreground_window_info() -> (u32, String) {
+        #[cfg(target_os = "windows")]
+        {
+            use std::ffi::c_void;
+            #[link(name = "user32")]
+            extern "system" {
+                fn GetForegroundWindow() -> *mut c_void;
+                fn GetWindowThreadProcessId(window: *mut c_void, process_id: *mut u32) -> u32;
+                fn GetWindowTextW(window: *mut c_void, text: *mut u16, max_count: i32) -> i32;
+            }
 
-        Ok(ScreenCaptureResult {
-            base64_image: BASE64.encode(&dummy_jpeg),
-            width: 1,
-            height: 1,
-            timestamp,
-        })
+            unsafe {
+                let window = GetForegroundWindow();
+                if window.is_null() { return (0, String::new()); }
+                let mut process_id = 0;
+                GetWindowThreadProcessId(window, &mut process_id);
+                let mut title = [0u16; 512];
+                let length = GetWindowTextW(window, title.as_mut_ptr(), title.len() as i32);
+                (process_id, String::from_utf16_lossy(&title[..length.max(0) as usize]))
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        { (0, String::new()) }
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod native_capture {
+    use std::{ffi::c_void, ptr, slice};
+
+    const SRCCOPY: u32 = 0x00CC0020;
+    const CAPTUREBLT: u32 = 0x40000000;
+    const DIB_RGB_COLORS: u32 = 0;
+    const BI_RGB: u32 = 0;
+
+    #[repr(C)]
+    struct BitmapInfoHeader {
+        size: u32,
+        width: i32,
+        height: i32,
+        planes: u16,
+        bit_count: u16,
+        compression: u32,
+        image_size: u32,
+        x_pixels_per_meter: i32,
+        y_pixels_per_meter: i32,
+        colors_used: u32,
+        colors_important: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct RgbQuad { blue: u8, green: u8, red: u8, reserved: u8 }
+
+    #[repr(C)]
+    struct BitmapInfo { header: BitmapInfoHeader, colors: [RgbQuad; 1] }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetDC(window: *mut c_void) -> *mut c_void;
+        fn ReleaseDC(window: *mut c_void, dc: *mut c_void) -> i32;
+        fn GetSystemMetrics(index: i32) -> i32;
+    }
+
+    #[link(name = "gdi32")]
+    extern "system" {
+        fn CreateCompatibleDC(dc: *mut c_void) -> *mut c_void;
+        fn DeleteDC(dc: *mut c_void) -> i32;
+        fn CreateDIBSection(dc: *mut c_void, info: *const BitmapInfo, usage: u32, bits: *mut *mut c_void, section: *mut c_void, offset: u32) -> *mut c_void;
+        fn SelectObject(dc: *mut c_void, object: *mut c_void) -> *mut c_void;
+        fn BitBlt(dest_dc: *mut c_void, x: i32, y: i32, width: i32, height: i32, src_dc: *mut c_void, src_x: i32, src_y: i32, operation: u32) -> i32;
+        fn DeleteObject(object: *mut c_void) -> i32;
+    }
+
+    pub fn capture_primary() -> Result<(Vec<u8>, u32, u32), String> {
+        unsafe {
+            let width = GetSystemMetrics(0);
+            let height = GetSystemMetrics(1);
+            if width <= 0 || height <= 0 || width > 16384 || height > 16384 {
+                return Err("Windows reported an invalid primary-monitor size.".to_string());
+            }
+            let byte_count = (width as usize)
+                .checked_mul(height as usize)
+                .and_then(|count| count.checked_mul(4))
+                .filter(|count| *count <= 512 * 1024 * 1024)
+                .ok_or_else(|| "Primary-monitor screenshot is too large.".to_string())?;
+
+            let screen_dc = GetDC(ptr::null_mut());
+            if screen_dc.is_null() { return Err("Could not access the Windows desktop.".to_string()); }
+            let memory_dc = CreateCompatibleDC(screen_dc);
+            if memory_dc.is_null() {
+                ReleaseDC(ptr::null_mut(), screen_dc);
+                return Err("Could not allocate a Windows screen-capture context.".to_string());
+            }
+
+            let info = BitmapInfo {
+                header: BitmapInfoHeader {
+                    size: std::mem::size_of::<BitmapInfoHeader>() as u32,
+                    width,
+                    height: -height,
+                    planes: 1,
+                    bit_count: 32,
+                    compression: BI_RGB,
+                    image_size: byte_count as u32,
+                    x_pixels_per_meter: 0,
+                    y_pixels_per_meter: 0,
+                    colors_used: 0,
+                    colors_important: 0,
+                },
+                colors: [RgbQuad { blue: 0, green: 0, red: 0, reserved: 0 }],
+            };
+            let mut bits = ptr::null_mut();
+            let bitmap = CreateDIBSection(screen_dc, &info, DIB_RGB_COLORS, &mut bits, ptr::null_mut(), 0);
+            if bitmap.is_null() || bits.is_null() {
+                if !bitmap.is_null() { DeleteObject(bitmap); }
+                DeleteDC(memory_dc);
+                ReleaseDC(ptr::null_mut(), screen_dc);
+                return Err("Windows could not create the screenshot bitmap.".to_string());
+            }
+
+            let old_bitmap = SelectObject(memory_dc, bitmap);
+            if old_bitmap.is_null() || old_bitmap as isize == -1 {
+                DeleteObject(bitmap);
+                DeleteDC(memory_dc);
+                ReleaseDC(ptr::null_mut(), screen_dc);
+                return Err("Windows could not prepare the screenshot bitmap.".to_string());
+            }
+
+            let copied = BitBlt(memory_dc, 0, 0, width, height, screen_dc, 0, 0, SRCCOPY | CAPTUREBLT) != 0;
+            let pixels = if copied { Some(slice::from_raw_parts(bits.cast::<u8>(), byte_count).to_vec()) } else { None };
+            SelectObject(memory_dc, old_bitmap);
+            DeleteObject(bitmap);
+            DeleteDC(memory_dc);
+            ReleaseDC(ptr::null_mut(), screen_dc);
+
+            match pixels {
+                Some(data) => Ok((data, width as u32, height as u32)),
+                None => Err("Windows could not copy pixels from the primary monitor.".to_string()),
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod native_capture {
+    pub fn capture_primary() -> Result<(Vec<u8>, u32, u32), String> {
+        Err("Native screen capture is currently available on Windows only.".to_string())
     }
 }

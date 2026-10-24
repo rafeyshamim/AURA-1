@@ -8,6 +8,18 @@ const statusDot = document.getElementById('statusDot');
 const orbContainer = document.getElementById('orbContainer');
 const squintEyes = document.getElementById('squintEyes');
 const agentMouth = document.getElementById('agentMouth');
+const auraStage = document.getElementById('auraStage');
+const appShell = document.getElementById('appShell');
+const stateLabel = document.getElementById('stateLabel');
+const stateHint = document.getElementById('stateHint');
+const themeSelect = document.getElementById('themeSelect');
+const motionToggle = document.getElementById('motionToggle');
+const chatForm = document.getElementById('chatForm');
+const messageInput = document.getElementById('messageInput');
+const messages = document.getElementById('messages');
+const sendButton = document.getElementById('sendButton');
+const chatToggle = document.getElementById('chatToggle');
+const closeChat = document.getElementById('closeChat');
 
 let fadeTimer = null;
 
@@ -177,8 +189,12 @@ const COLOR_THEMES = {
  */
 function applyColorTheme(colorName) {
   if (!colorName) return;
-  const name = colorName.trim().toLowerCase();
-  const theme = COLOR_THEMES[name] || COLOR_THEMES['default'];
+  const name = String(colorName).trim().toLowerCase();
+  const theme = COLOR_THEMES[name];
+  if (!theme) {
+    console.warn(`AURA ignored unsupported color theme: ${name}`);
+    return false;
+  }
   const root = document.documentElement;
 
   root.style.setProperty('--orb-gradient-top', theme.top);
@@ -191,6 +207,8 @@ function applyColorTheme(colorName) {
   root.style.setProperty('--eye-ambient-glow', theme.eyeAmbient);
   root.style.setProperty('--accent-dot', theme.accentDot);
   root.style.setProperty('--pill-border', theme.pillBorder);
+  if (themeSelect) themeSelect.value = name;
+  try { localStorage.setItem('aura-color-theme', name); } catch (_) { /* Storage may be unavailable in preview mode. */ }
 
   // Subtle flash on color change
   if (squintingOrb) {
@@ -199,6 +217,7 @@ function applyColorTheme(colorName) {
       squintingOrb.style.filter = '';
     }, 350);
   }
+  return true;
 }
 
 // Helper to set orb state and speech bubble content
@@ -206,6 +225,15 @@ function setOrbState(state, text = '', badge = '') {
   if (!squintingOrb || !speechPill) return;
 
   squintingOrb.dataset.state = state;
+  if (auraStage) auraStage.dataset.state = state;
+  const stateCopy = {
+    idle: ['Ready when you are', 'Click the orb or open chat to start'],
+    listening: ['Listening', 'I’m ready for your voice'],
+    thinking: ['Thinking', 'Working on your request…'],
+    speaking: ['Speaking', 'AURA is responding']
+  }[state] || ['AURA is active', ''];
+  if (stateLabel) stateLabel.textContent = stateCopy[0];
+  if (stateHint) stateHint.textContent = stateCopy[1];
 
   if (fadeTimer) {
     clearTimeout(fadeTimer);
@@ -253,9 +281,10 @@ function setOrbState(state, text = '', badge = '') {
   }
 }
 
-// Window Dragging Support
-if (orbContainer) {
-  orbContainer.addEventListener('mousedown', (e) => {
+// Drag only from the title area so buttons and text fields remain interactive.
+const dragHandle = document.getElementById('dragHandle');
+if (dragHandle) {
+  dragHandle.addEventListener('mousedown', (e) => {
     if (e.button === 0) {
       try {
         if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
@@ -282,8 +311,91 @@ if (squintingOrb) {
       if (squintEyes) squintEyes.style.transform = '';
       if (mouthShape) mouthShape.style.transform = '';
     }, 220);
+    setChatOpen(true);
   });
 }
+
+function setChatOpen(open) {
+  if (!appShell) return;
+  appShell.classList.toggle('chat-open', open);
+  if (chatToggle) chatToggle.setAttribute('aria-expanded', String(open));
+  const panel = document.getElementById('chatPanel');
+  if (panel) panel.setAttribute('aria-hidden', String(!open));
+  if (open && messageInput) setTimeout(() => messageInput.focus(), 120);
+}
+
+function appendMessage(role, text) {
+  const article = document.createElement('article');
+  article.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
+  const label = document.createElement('span');
+  label.className = 'message-label';
+  label.textContent = role === 'user' ? 'YOU' : 'AURA';
+  const body = document.createElement('p');
+  body.textContent = text;
+  article.append(label, body);
+  messages.appendChild(article);
+  messages.scrollTop = messages.scrollHeight;
+  return body;
+}
+
+if (chatToggle) chatToggle.addEventListener('click', () => setChatOpen(!appShell.classList.contains('chat-open')));
+if (closeChat) closeChat.addEventListener('click', () => setChatOpen(false));
+if (themeSelect) {
+  themeSelect.addEventListener('change', () => applyColorTheme(themeSelect.value));
+  try {
+    const savedTheme = localStorage.getItem('aura-color-theme');
+    if (savedTheme && COLOR_THEMES[savedTheme]) applyColorTheme(savedTheme);
+  } catch (_) { /* Storage may be unavailable in preview mode. */ }
+}
+if (motionToggle) {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  motionToggle.setAttribute('aria-pressed', String(reducedMotion));
+  motionToggle.textContent = reducedMotion ? 'Motion: off' : 'Motion: on';
+  document.body.classList.toggle('motion-reduced', reducedMotion);
+  motionToggle.addEventListener('click', () => {
+    const off = !document.body.classList.contains('motion-reduced');
+    document.body.classList.toggle('motion-reduced', off);
+    motionToggle.setAttribute('aria-pressed', String(off));
+    motionToggle.textContent = off ? 'Motion: off' : 'Motion: on';
+  });
+}
+
+if (chatForm) chatForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const message = messageInput.value.trim();
+  if (!message || sendButton.disabled) return;
+  appendMessage('user', message);
+  messageInput.value = '';
+  messageInput.style.height = 'auto';
+  const replyNode = appendMessage('assistant', 'Thinking…');
+  replyNode.parentElement.classList.add('pending-message');
+  setOrbState('thinking', message, 'YOU');
+  sendButton.disabled = true;
+  try {
+    const invoke = window.__TAURI__?.core?.invoke;
+    if (!invoke) throw new Error('Chat is available in the AURA desktop app.');
+    const response = await invoke('process_message', {
+      message,
+      enableVision: document.getElementById('enableVision').checked,
+      speakAloud: document.getElementById('speakAloud').checked
+    });
+    replyNode.textContent = response.reply || 'I could not produce a response.';
+    replyNode.parentElement.classList.remove('pending-message');
+    if (response.color_action) applyColorTheme(response.color_action);
+    setOrbState('speaking', response.reply || '', 'AURA-1');
+  } catch (error) {
+    replyNode.textContent = `I couldn’t complete that request: ${error?.message || error}`;
+    replyNode.parentElement.classList.remove('pending-message');
+    setOrbState('idle', '', 'AURA-1');
+  } finally {
+    sendButton.disabled = false;
+    messageInput.focus();
+  }
+});
+if (messageInput) messageInput.addEventListener('input', () => {
+  messageInput.style.height = 'auto';
+  messageInput.style.height = `${Math.min(messageInput.scrollHeight, 82)}px`;
+});
 
 // Connect to Tauri Live Events
 function initTauriListeners() {
@@ -338,11 +450,13 @@ function initTauriListeners() {
     if (payload.active) {
       setOrbState('thinking', 'Vision: Tracking Hand...', 'VISION');
       if (squintingOrb) squintingOrb.classList.add('tracking-active');
+      if (auraStage) auraStage.classList.add('tracking-active');
     } else {
       if (squintingOrb) {
         squintingOrb.classList.remove('tracking-active');
         squintingOrb.classList.remove('tracking-detected');
       }
+      if (auraStage) { auraStage.classList.remove('tracking-active'); auraStage.classList.remove('tracking-detected'); }
       setOrbState('listening', '', 'IDLE');
     }
   });
@@ -352,8 +466,10 @@ function initTauriListeners() {
     const payload = event.payload || {};
     if (payload.detected) {
       if (squintingOrb) squintingOrb.classList.add('tracking-detected');
+      if (auraStage) auraStage.classList.add('tracking-detected');
     } else {
       if (squintingOrb) squintingOrb.classList.remove('tracking-detected');
+      if (auraStage) auraStage.classList.remove('tracking-detected');
     }
   });
 
@@ -386,11 +502,15 @@ function initTauriListeners() {
         delete squintingOrb.dataset.gesture;
       }, 750);
     }
+    if (auraStage) {
+      auraStage.classList.add('gesture-triggered');
+      setTimeout(() => auraStage.classList.remove('gesture-triggered'), 750);
+    }
   });
 }
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
-  if (squintingOrb) squintingOrb.dataset.state = 'listening';
+  setOrbState('idle');
   initTauriListeners();
 });
