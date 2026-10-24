@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(dead_code, unused_imports, unused_variables)]
 
+mod chroma_server;
+mod hand_tracker;
 mod llm;
 pub mod logger;
 mod mcp;
@@ -13,6 +15,8 @@ mod security;
 mod speech;
 mod vision;
 
+use chroma_server::ChromaServerProcess;
+use hand_tracker::HandTrackerProcess;
 use llm::ModelInfo;
 use logger::LogEntry;
 use memory::MemoryItem;
@@ -28,6 +32,8 @@ use vision::ScreenCaptureResult;
 struct AppState {
     orchestrator: Arc<Mutex<AgentOrchestrator>>,
     speech_engine: Arc<SpeechProcess>,
+    hand_tracker: Arc<HandTrackerProcess>,
+    chroma_server: Arc<ChromaServerProcess>,
 }
 
 #[tauri::command]
@@ -217,10 +223,31 @@ async fn execute_guarded_write(
 }
 
 #[tauri::command]
+async fn toggle_hand_tracking(state: State<'_, AppState>, enable: bool) -> Result<String, String> {
+    if enable {
+        state.hand_tracker.start_tracking();
+        Ok("Hand tracking started".to_string())
+    } else {
+        state.hand_tracker.stop_tracking();
+        Ok("Hand tracking stopped".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_hand_tracking_status(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.hand_tracker.is_active())
+}
+
+#[tauri::command]
 async fn list_mcp_tools(state: State<'_, AppState>) -> Result<Vec<mcp::McpToolDefinition>, String> {
     let orch = state.orchestrator.lock().await;
     let mcp = orch.mcp.lock().await;
     Ok(mcp.list_tools().to_vec())
+}
+
+#[tauri::command]
+async fn get_chroma_server_status() -> Result<bool, String> {
+    Ok(ChromaServerProcess::is_port_in_use(8000))
 }
 
 fn main() {
@@ -245,15 +272,31 @@ fn main() {
                     mov.set_app_handle(handle_mov);
                 });
 
+                // Spawn ChromaDB Vector Memory server automatically on port 8000
+                let chroma_server = ChromaServerProcess::spawn(handle.clone());
+
                 // Spawn offline python speech engine
-                let speech_engine = speech::SpeechProcess::spawn(handle, orchestrator.clone());
+                let speech_engine = speech::SpeechProcess::spawn(handle.clone(), orchestrator.clone());
+
+                // Spawn real-time webcam hand tracking process
+                let hand_tracker = HandTrackerProcess::spawn(handle.clone(), orchestrator.clone());
+                {
+                    let orch_tracker = orchestrator.clone();
+                    let ht_clone = hand_tracker.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let mut orch = orch_tracker.lock().await;
+                        orch.set_hand_tracker(ht_clone);
+                    });
+                }
 
                 app.manage(AppState {
                     orchestrator,
                     speech_engine,
+                    hand_tracker,
+                    chroma_server,
                 });
 
-                logger::log("SYSTEM", "INFO", "AURA-1 initialization complete. Speech engine online.");
+                logger::log("SYSTEM", "INFO", "AURA-1 initialization complete. Speech engine, Vision Hand Tracker & ChromaDB online.");
                 Ok(())
             }
         })
@@ -277,11 +320,15 @@ fn main() {
             open_desktop_target,
             query_chroma_memory,
             store_chroma_memory,
+            get_chroma_server_status,
             execute_safe_command,
             execute_guarded_write,
             list_mcp_tools,
+            toggle_hand_tracking,
+            get_hand_tracking_status,
             drag_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running AURA-1 personal agent");
 }
+

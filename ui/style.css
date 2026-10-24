@@ -580,3 +580,47 @@ html, body {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.85); }
 }
+
+/* Real-time Vision Hand Tracking State */
+.squinting-orb.tracking-active {
+  box-shadow: 
+    0 0 35px var(--orb-glow),
+    0 0 70px var(--orb-ambient),
+    inset 0 0 25px rgba(255, 255, 255, 0.45);
+}
+
+.squinting-orb.tracking-detected .ring-outer {
+  border-color: rgba(56, 189, 248, 0.85);
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.75);
+  animation: visionTrackingPulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes visionTrackingPulse {
+  0% { transform: scale(1.02); opacity: 0.6; }
+  100% { transform: scale(1.12); opacity: 0.95; }
+}
+
+/* Gesture Triggered Feedback Animation */
+.squinting-orb.gesture-triggered {
+  animation: gestureBurst 0.65s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.squinting-orb.gesture-triggered .ring-outer {
+  animation: gestureRingBurst 0.65s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.squinting-orb.gesture-triggered .squint-eyes {
+  transform: scaleX(1.35) scaleY(0.45);
+}
+
+@keyframes gestureBurst {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); box-shadow: 0 0 60px var(--orb-glow), 0 0 95px var(--orb-ambient); }
+  100% { transform: scale(1); }
+}
+
+@keyframes gestureRingBurst {
+  0% { transform: scale(1); opacity: 0.4; }
+  40% { transform: scale(1.22); opacity: 0.95; }
+  100% { transform: scale(1); opacity: 0.4; }
+}

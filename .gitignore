@@ -19,6 +19,7 @@ yarn-error.log*
 # Models and cached weights (downloaded locally at runtime)
 models/
 src-tauri/models/
+*.task
 
 # ChromaDB vector memory store
 chroma_db/

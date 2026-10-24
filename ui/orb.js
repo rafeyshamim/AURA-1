@@ -331,6 +331,62 @@ function initTauriListeners() {
       applyColorTheme(color);
     }
   });
+
+  // 5. Listen for Vision Hand Tracking status
+  listen('aura-hand-tracking-status', (event) => {
+    const payload = event.payload || {};
+    if (payload.active) {
+      setOrbState('thinking', 'Vision: Tracking Hand...', 'VISION');
+      if (squintingOrb) squintingOrb.classList.add('tracking-active');
+    } else {
+      if (squintingOrb) {
+        squintingOrb.classList.remove('tracking-active');
+        squintingOrb.classList.remove('tracking-detected');
+      }
+      setOrbState('listening', '', 'IDLE');
+    }
+  });
+
+  // 6. Listen for real-time hand coordinates from webcam
+  listen('aura-hand-position', (event) => {
+    const payload = event.payload || {};
+    if (payload.detected) {
+      if (squintingOrb) squintingOrb.classList.add('tracking-detected');
+    } else {
+      if (squintingOrb) squintingOrb.classList.remove('tracking-detected');
+    }
+  });
+
+  // 7. Listen for real-time gesture triggers (swipe_right, swipe_left, swipe_up, swipe_down, pinch, peace, thumbs_up, open_palm)
+  listen('aura-gesture', (event) => {
+    const payload = event.payload || {};
+    const gesture = payload.gesture || '';
+    if (!gesture) return;
+
+    const gestureLabels = {
+      swipe_right: '👉 Swiped Right',
+      swipe_left: '👈 Swiped Left',
+      swipe_up: '👆 Swiped Up',
+      swipe_down: '👇 Swiped Down',
+      pinch: '🤏 Pinched (Minimize)',
+      peace: '✌️ Peace Sign',
+      thumbs_up: '👍 Thumbs Up!',
+      open_palm: '✋ Open Palm (Center)',
+      fist: '✊ Fist (Halt)'
+    };
+
+    const label = gestureLabels[gesture] || `Gesture: ${gesture}`;
+    setOrbState('thinking', label, 'GESTURE');
+
+    if (squintingOrb) {
+      squintingOrb.dataset.gesture = gesture;
+      squintingOrb.classList.add('gesture-triggered');
+      setTimeout(() => {
+        squintingOrb.classList.remove('gesture-triggered');
+        delete squintingOrb.dataset.gesture;
+      }, 750);
+    }
+  });
 }
 
 // Initialize on page load

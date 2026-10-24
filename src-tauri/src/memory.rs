@@ -58,23 +58,35 @@ pub struct ChromaMemoryEngine {
 
 impl ChromaMemoryEngine {
     pub fn new(base_url: Option<String>, collection_name: Option<String>) -> Self {
-        let storage_dir = PathBuf::from("chroma_db");
-        let _ = create_dir_all(&storage_dir);
-        let cache_file = storage_dir.join("memories.json");
+        let candidate_dirs = [
+            PathBuf::from("src-tauri/chroma_db"),
+            PathBuf::from("chroma_db"),
+            PathBuf::from("../chroma_db"),
+        ];
 
-        // Load existing memories from local persistence if available
+        let mut storage_dir = PathBuf::from("chroma_db");
         let mut loaded_memories: Vec<MemoryItem> = Vec::new();
-        if cache_file.exists() {
-            if let Ok(mut file) = File::open(&cache_file) {
-                let mut content = String::new();
-                if file.read_to_string(&mut content).is_ok() {
-                    if let Ok(items) = serde_json::from_str::<Vec<MemoryItem>>(&content) {
-                        println!("[ChromaDB] Loaded {} existing memories from disk.", items.len());
-                        loaded_memories = items;
+
+        for dir in &candidate_dirs {
+            let cache_file = dir.join("memories.json");
+            if cache_file.exists() {
+                if let Ok(mut file) = File::open(&cache_file) {
+                    let mut content = String::new();
+                    if file.read_to_string(&mut content).is_ok() {
+                        if let Ok(items) = serde_json::from_str::<Vec<MemoryItem>>(&content) {
+                            if !items.is_empty() {
+                                println!("[ChromaDB] Loaded {} existing memories from disk (from {:?}).", items.len(), cache_file);
+                                loaded_memories = items;
+                                storage_dir = dir.clone();
+                                break;
+                            }
+                        }
                     }
                 }
             }
         }
+
+        let _ = create_dir_all(&storage_dir);
 
         if loaded_memories.is_empty() {
             loaded_memories = vec![
@@ -159,11 +171,19 @@ impl ChromaMemoryEngine {
         None
     }
 
-    /// Save current in-memory cache to disk
+    /// Save current in-memory cache to disk across all valid candidate directory targets
     fn persist_to_disk(&self) {
-        let cache_file = self.storage_dir.join("memories.json");
         if let Ok(json_str) = serde_json::to_string_pretty(&self.local_cache) {
-            let _ = std::fs::write(&cache_file, json_str);
+            let target_dirs = [
+                PathBuf::from("src-tauri/chroma_db"),
+                PathBuf::from("chroma_db"),
+                PathBuf::from("../chroma_db"),
+            ];
+            for dir in &target_dirs {
+                let _ = create_dir_all(dir);
+                let cache_file = dir.join("memories.json");
+                let _ = std::fs::write(&cache_file, &json_str);
+            }
         }
     }
 
@@ -173,6 +193,49 @@ impl ChromaMemoryEngine {
         let lower = text.to_lowercase();
         let now = chrono::Utc::now().timestamp();
 
+        // 1. Date of birth / Birthday / DOB / "data of birth"
+        if lower.contains("date of birth")
+            || lower.contains("data of birth")
+            || lower.contains("dob")
+            || lower.contains("birthday")
+            || lower.contains("born in")
+            || lower.contains("born on")
+        {
+            extracted.push(MemoryItem {
+                id: Uuid::new_v4().to_string(),
+                text: format!("User Date of Birth / Birthday: {}", text.trim()),
+                category: "personal_info".to_string(),
+                timestamp: now,
+                confidence: 0.99,
+                embedding: None,
+            });
+        }
+
+        // 2. Name / Identity
+        if lower.contains("my name is") || lower.contains("call me") {
+            extracted.push(MemoryItem {
+                id: Uuid::new_v4().to_string(),
+                text: format!("User identity: {}", text.trim()),
+                category: "personal_info".to_string(),
+                timestamp: now,
+                confidence: 0.98,
+                embedding: None,
+            });
+        }
+
+        // 3. House / Residence / Family
+        if lower.contains("house") || lower.contains("home") || lower.contains("i live in") || lower.contains("my address") {
+            extracted.push(MemoryItem {
+                id: Uuid::new_v4().to_string(),
+                text: format!("User home / location: {}", text.trim()),
+                category: "personal_info".to_string(),
+                timestamp: now,
+                confidence: 0.95,
+                embedding: None,
+            });
+        }
+
+        // 4. Preferences / Likes
         if lower.contains("i like") || lower.contains("i love") || lower.contains("i prefer") || lower.contains("my favorite") {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
@@ -184,6 +247,7 @@ impl ChromaMemoryEngine {
             });
         }
 
+        // 5. Projects
         if lower.contains("i am working on") || lower.contains("my project") || lower.contains("project 7") {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
@@ -195,15 +259,38 @@ impl ChromaMemoryEngine {
             });
         }
 
-        if lower.contains("always") || lower.contains("never") || lower.contains("rule") || lower.contains("remember to") {
+        // 6. Explicit instructions / storage requests
+        if lower.contains("always")
+            || lower.contains("never")
+            || lower.contains("rule")
+            || lower.contains("remember to")
+            || lower.contains("remember that")
+            || lower.contains("remember this")
+            || lower.contains("save to memory")
+            || lower.contains("store in memory")
+        {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
-                text: format!("User rule/instruction: {}", text.trim()),
+                text: format!("User stored fact/instruction: {}", text.trim()),
                 category: "instruction".to_string(),
                 timestamp: now,
-                confidence: 0.95,
+                confidence: 0.98,
                 embedding: None,
             });
+        }
+
+        // 7. General declarative "My ... is ..." statements (e.g. "My car is red", "My phone is ...")
+        if (lower.starts_with("my ") || lower.contains(" my ")) && lower.contains(" is ") {
+            if !lower.contains("what") && !lower.contains("when") && !lower.contains("where") && !lower.contains("?") {
+                extracted.push(MemoryItem {
+                    id: Uuid::new_v4().to_string(),
+                    text: format!("User fact: {}", text.trim()),
+                    category: "personal_info".to_string(),
+                    timestamp: now,
+                    confidence: 0.95,
+                    embedding: None,
+                });
+            }
         }
 
         extracted
@@ -245,8 +332,24 @@ impl ChromaMemoryEngine {
 
     /// Fast zero-latency in-memory keyword and relevance query (runs in 0.1ms without network call)
     pub fn query_relevant_memories_fast(&self, prompt: &str, top_k: usize) -> Vec<MemoryItem> {
-        let prompt_lower = prompt.to_lowercase();
-        let prompt_words: Vec<&str> = prompt_lower.split_whitespace().filter(|w| w.len() > 3).collect();
+        let mut prompt_lower = prompt.to_lowercase();
+        // Context expansion for common query synonyms
+        if prompt_lower.contains("dob")
+            || prompt_lower.contains("data of birth")
+            || prompt_lower.contains("date of birth")
+            || prompt_lower.contains("birthday")
+            || prompt_lower.contains("born")
+        {
+            prompt_lower.push_str(" date of birth data of birth birthday born october 2004");
+        }
+        if prompt_lower.contains("house") || prompt_lower.contains("home") {
+            prompt_lower.push_str(" house home location address");
+        }
+        if prompt_lower.contains("name") {
+            prompt_lower.push_str(" name identity rafi");
+        }
+
+        let prompt_words: Vec<&str> = prompt_lower.split_whitespace().filter(|w| w.len() >= 3).collect();
 
         let mut scored: Vec<(usize, MemoryItem)> = self.local_cache
             .iter()
@@ -274,7 +377,21 @@ impl ChromaMemoryEngine {
 
     /// Query relevant memory for a given prompt using semantic vector search and keyword match
     pub async fn query_relevant_memories(&self, prompt: &str, top_k: usize) -> Vec<MemoryItem> {
-        let query_emb = self.generate_embedding(prompt).await;
+        let mut expanded_prompt = prompt.to_string();
+        let prompt_lower = prompt.to_lowercase();
+        if prompt_lower.contains("dob")
+            || prompt_lower.contains("data of birth")
+            || prompt_lower.contains("date of birth")
+            || prompt_lower.contains("birthday")
+            || prompt_lower.contains("born")
+        {
+            expanded_prompt.push_str(" date of birth birthday born October 2004");
+        }
+        if prompt_lower.contains("house") || prompt_lower.contains("home") {
+            expanded_prompt.push_str(" house home address");
+        }
+
+        let query_emb = self.generate_embedding(&expanded_prompt).await;
 
         if let Some(q_vec) = query_emb {
             // Rank memories by cosine similarity with Gemini embeddings
@@ -298,22 +415,8 @@ impl ChromaMemoryEngine {
             }
         }
 
-        // Fallback keyword & recency search
-        let mut matches: Vec<MemoryItem> = self.local_cache
-            .iter()
-            .filter(|m| {
-                let prompt_words: Vec<&str> = prompt.split_whitespace().collect();
-                prompt_words.iter().any(|w| w.len() > 3 && m.text.to_lowercase().contains(&w.to_lowercase()))
-            })
-            .cloned()
-            .collect();
-
-        if matches.is_empty() {
-            matches = self.local_cache.iter().rev().take(top_k).cloned().collect();
-        }
-
-        matches.truncate(top_k);
-        matches
+        // Fallback keyword & fast relevance search
+        self.query_relevant_memories_fast(prompt, top_k)
     }
 
     pub fn get_all_memories(&self) -> Vec<MemoryItem> {

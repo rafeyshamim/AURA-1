@@ -136,6 +136,40 @@ impl MovementController {
         )
     }
 
+    /// Update AURA window position smoothly in real time following normalized webcam hand coordinates [0.0, 1.0]
+    pub fn update_hand_position(&mut self, norm_x: f32, norm_y: f32) {
+        // Hand tracking overrides autonomous floating roam
+        if self.is_roaming.load(Ordering::SeqCst) {
+            self.stop_roaming();
+        }
+
+        self.refresh_display_info();
+        let mon_w = self.screen_width;
+        let mon_h = self.screen_height;
+        let mon_x = self.monitor_x;
+        let mon_y = self.monitor_y;
+        let win_w = self.window_width;
+        let win_h = self.window_height;
+
+        let clamp_x = norm_x.clamp(0.0, 1.0);
+        let clamp_y = norm_y.clamp(0.0, 1.0);
+
+        let target_x = mon_x + ((mon_w - win_w) as f32 * clamp_x) as i32;
+        let target_y = mon_y + ((mon_h - win_h) as f32 * clamp_y) as i32;
+
+        self.current_position.x = target_x;
+        self.current_position.y = target_y;
+
+        if let Some(app) = &self.app_handle {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_position(Position::Physical(PhysicalPosition {
+                    x: target_x,
+                    y: target_y,
+                }));
+            }
+        }
+    }
+
     /// Move the window smoothly to an absolute (X, Y) coordinate with cosine interpolation
     pub async fn glide_to(&mut self, target_x: i32, target_y: i32) -> Result<(), String> {
         self.stop_roaming();
@@ -163,16 +197,16 @@ impl MovementController {
         let dest_x = target_x.clamp(min_x, max_x) as f32;
         let dest_y = target_y.clamp(min_y, max_y) as f32;
 
-        let steps = 30;
+        let steps = 36;
         for i in 1..=steps {
             let progress = i as f32 / steps as f32;
-            // Cosine easing for ultra-smooth gliding
-            let eased = (1.0 - (progress * std::f32::consts::PI).cos()) / 2.0;
+            // Quintic smoothstep for buttery-smooth, fluid gliding
+            let eased = progress * progress * progress * (progress * (progress * 6.0 - 15.0) + 10.0);
             let cur_x = (start_x + (dest_x - start_x) * eased) as i32;
             let cur_y = (start_y + (dest_y - start_y) * eased) as i32;
 
             let _ = window.set_position(Position::Physical(PhysicalPosition { x: cur_x, y: cur_y }));
-            tokio::time::sleep(tokio::time::Duration::from_millis(14)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
         self.current_position.x = dest_x as i32;

@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
-use std::process::{ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tauri::{AppHandle, Emitter};
@@ -9,6 +9,7 @@ use crate::orchestrator::AgentOrchestrator;
 
 pub struct SpeechProcess {
     stdin: Arc<StdMutex<Option<ChildStdin>>>,
+    child: Arc<StdMutex<Option<Child>>>,
 }
 
 impl SpeechProcess {
@@ -54,6 +55,7 @@ impl SpeechProcess {
                 crate::logger::log("SPEECH", "ERROR", &format!("Failed to start speech_engine.py: {}", e));
                 return Arc::new(Self {
                     stdin: Arc::new(StdMutex::new(None)),
+                    child: Arc::new(StdMutex::new(None)),
                 });
             }
         };
@@ -64,6 +66,7 @@ impl SpeechProcess {
 
         let stdin_arc = Arc::new(StdMutex::new(child_stdin));
         let stdin_for_reader = stdin_arc.clone();
+        let child_arc = Arc::new(StdMutex::new(Some(child)));
 
         // Stderr reader thread
         if let Some(err_pipe) = child_stderr {
@@ -85,6 +88,7 @@ impl SpeechProcess {
             let stdin_writer = stdin_for_reader.clone();
 
             let is_busy = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let req_seq = Arc::new(std::sync::atomic::AtomicU64::new(0));
 
             std::thread::spawn(move || {
                 let reader = BufReader::new(out_pipe);
@@ -120,6 +124,7 @@ impl SpeechProcess {
                                 }));
                             }
                             "speech_done" => {
+                                req_seq.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 is_busy.store(false, std::sync::atomic::Ordering::SeqCst);
                                 let _ = app_handle.emit("aura-state", serde_json::json!({
                                     "state": "listening",
@@ -135,6 +140,7 @@ impl SpeechProcess {
                                         continue;
                                     }
 
+                                    let my_seq = req_seq.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
                                     crate::logger::log("SPEECH", "SUCCESS", &format!("Transcribed: '{}'", user_text));
                                     let _ = app_handle.emit("aura-user-speech", serde_json::json!({
                                         "text": user_text
@@ -149,17 +155,20 @@ impl SpeechProcess {
                                     let writer = stdin_writer.clone();
                                     let busy_flag = is_busy.clone();
 
-                                    // Watchdog: force-recover if stuck for more than 12 seconds
+                                    // Watchdog: auto-recover if stuck for > 25 seconds for the same request
                                     let watchdog_busy = is_busy.clone();
+                                    let watchdog_seq = req_seq.clone();
                                     let watchdog_app = app_handle.clone();
                                     tauri::async_runtime::spawn(async move {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(12)).await;
-                                        if watchdog_busy.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                                            crate::logger::log("SPEECH", "WARN", "Speech watchdog: auto-recovered agent from stuck busy state.");
-                                            let _ = watchdog_app.emit("aura-state", serde_json::json!({
-                                                "state": "listening",
-                                                "text": ""
-                                            }));
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(25)).await;
+                                        if watchdog_seq.load(std::sync::atomic::Ordering::SeqCst) == my_seq {
+                                            if watchdog_busy.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                                                crate::logger::log("SPEECH", "WARN", "Speech watchdog: auto-recovered agent from stuck busy state.");
+                                                let _ = watchdog_app.emit("aura-state", serde_json::json!({
+                                                    "state": "listening",
+                                                    "text": ""
+                                                }));
+                                            }
                                         }
                                     });
 
@@ -198,7 +207,10 @@ impl SpeechProcess {
             });
         }
 
-        Arc::new(Self { stdin: stdin_arc })
+        Arc::new(Self {
+            stdin: stdin_arc,
+            child: child_arc,
+        })
     }
 
     fn write_command(stdin_mutex: &Arc<StdMutex<Option<ChildStdin>>>, command: &str, text: &str) {
@@ -221,5 +233,16 @@ impl SpeechProcess {
 
     pub fn stop(&self) {
         Self::write_command(&self.stdin, "stop", "");
+    }
+}
+
+impl Drop for SpeechProcess {
+    fn drop(&mut self) {
+        Self::write_command(&self.stdin, "stop", "");
+        if let Ok(mut guard) = self.child.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
     }
 }

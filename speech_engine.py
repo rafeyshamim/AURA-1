@@ -21,7 +21,7 @@ def emit(data):
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 1024  # ~64ms per block
 CHANNELS = 1
-VAD_ENERGY_THRESHOLD = 0.016  # RMS threshold for speech
+VAD_ENERGY_THRESHOLD = 0.020  # RMS threshold for speech (tuned to ignore subtle breathing / room noise)
 SILENCE_DURATION_SEC = 0.55   # Ultra-fast conversational end-of-speech detection (~550ms)
 MIN_SPEECH_DURATION_SEC = 0.40 # Fast trigger for short commands ("yes", "stop", "open")
 PRE_BUFFER_SEC = 0.25          # Audio kept before speech trigger
@@ -155,6 +155,18 @@ def audio_callback(indata, frames, time_info, status):
     if not is_speaking:
         audio_queue.put(indata[:, 0].copy())
 
+def parent_watchdog():
+    """Watch if parent process terminates. If parent dies, exit immediately."""
+    ppid = os.getppid()
+    while is_running:
+        time.sleep(0.5)
+        try:
+            current_ppid = os.getppid()
+            if current_ppid != ppid or current_ppid <= 1:
+                os._exit(0)
+        except Exception:
+            os._exit(0)
+
 def stdin_listener():
     """Reads JSON commands from backend on stdin without buffering delay."""
     global is_running
@@ -168,7 +180,7 @@ def stdin_listener():
         try:
             line = sys.stdin.readline()
             if not line:
-                break
+                os._exit(0)
             line = line.strip()
             if not line:
                 continue
@@ -201,6 +213,40 @@ FILLER_WORDS = {
     "yep", "sure", "huh", "mhm", "aha", "so", "like"
 }
 
+def is_repetition_hallucination(raw_text: str, words: list[str]) -> bool:
+    """Detects and rejects Whisper greedy decoding loops and acoustic feedback hallucinations."""
+    if not words:
+        return True
+
+    # 1. Reject if all words are filler words (e.g. "Okay. Okay. Okay." or "Yeah sure ok")
+    if set(words).issubset(FILLER_WORDS):
+        return True
+
+    # 2. Reject if unique word ratio is abnormally low (hallucinatory loops)
+    if len(words) >= 3 and (len(set(words)) / len(words)) < 0.35:
+        return True
+
+    # 3. Reject if any word is repeated 3 or more times consecutively
+    consecutive_word_count = 1
+    for i in range(1, len(words)):
+        if words[i] == words[i - 1]:
+            consecutive_word_count += 1
+            if consecutive_word_count >= 3:
+                return True
+        else:
+            consecutive_word_count = 1
+
+    # 4. Reject multi-word phrase repetition loops (e.g. "a little bit of a little bit of...")
+    clean_str = " ".join(words)
+    for n in range(2, 6):
+        if len(words) >= n * 3:
+            for start in range(len(words) - n * 3 + 1):
+                phrase = " ".join(words[start:start + n])
+                if clean_str.count(phrase) >= 3:
+                    return True
+
+    return False
+
 def main():
     emit({"type": "log", "category": "SYSTEM", "level": "INFO", "message": "Initializing AURA Offline Speech Engine..."})
     
@@ -218,6 +264,10 @@ def main():
     # Start command worker thread
     t_cmd = threading.Thread(target=command_worker, daemon=True)
     t_cmd.start()
+
+    # Start parent watchdog thread
+    t_watch = threading.Thread(target=parent_watchdog, daemon=True)
+    t_watch.start()
 
     # Signal ready to Rust backend
     emit({"type": "ready"})
@@ -286,25 +336,33 @@ def main():
                                     beam_size=1,
                                     language="en",
                                     temperature=0.0,
-                                    vad_filter=False
+                                    vad_filter=False,
+                                    condition_on_previous_text=False,
+                                    compression_ratio_threshold=2.2,
+                                    no_speech_threshold=0.6,
+                                    repetition_penalty=1.15
                                 )
                                 transcribed_text = " ".join([s.text for s in segments]).strip()
                                 
-                                # Filter hallucinations and standalone filler words
-                                hallucinations = ["[music]", "(music)", "you", "thank you.", "bye.", "thank you for watching"]
-                                words = [w.strip(".,!?:;\"'").lower() for w in transcribed_text.split()]
+                                # Filter hallucinations, repetitions, and standalone filler words
+                                hallucinations = {
+                                    "[music]", "(music)", "you", "thank you.", "bye.",
+                                    "thank you for watching", "subtitles by", "amara.org",
+                                    "thank you", "thanks for watching!"
+                                }
+                                words = [w.strip(".,!?:;\"'").lower() for w in transcribed_text.split() if w.strip(".,!?:;\"'")]
 
-                                is_hallucination = transcribed_text.lower() in hallucinations
-                                is_only_filler = len(words) == 1 and words[0] in FILLER_WORDS
+                                is_known_hallucination = transcribed_text.lower().strip() in hallucinations
+                                is_repeated_hallucination = is_repetition_hallucination(transcribed_text, words)
                                 is_empty = len(words) == 0
 
-                                if not is_hallucination and not is_only_filler and not is_empty and len(transcribed_text) > 1:
+                                if not is_known_hallucination and not is_repeated_hallucination and not is_empty and len(transcribed_text) > 1:
                                     emit({
                                         "type": "transcription",
                                         "text": transcribed_text
                                     })
                                 else:
-                                    # Stay shut and reset to clean listening
+                                    # Stay quiet and reset to clean listening
                                     emit({"type": "state", "state": "listening", "text": ""})
                             except Exception as e:
                                 emit({"type": "log", "category": "STT", "level": "ERROR", "message": f"Transcription error: {e}"})

@@ -112,6 +112,14 @@ Copy-Item "C:\Users\rafey\.cargo_cache\project7_target\release\AURA-1.exe" "c:\U
 
 ---
 
+### 🧠 ChromaDB Vector Server (Port 8000)
+Jab bhi tum AURA-1 chalu karoge, ChromaDB automatically background me `http://127.0.0.1:8000` par start ho jayega:
+- **Port:** `8000` (Direct REST API & heartbeat)
+- **Persistence Path:** `chroma_db/`
+- **Auto Clean-up:** Jab tum AURA-1 band karoge, ChromaDB server bhi apne aap clean shutdown ho jayega bina kisi orphan process ke!
+
+---
+
 ### 📁 Project Structure
 
 ```
@@ -123,11 +131,12 @@ Project 7/
 ├── src-tauri/             ← Rust Backend
 │   ├── src/
 │   │   ├── main.rs        ← Entry point + Tauri commands
+│   │   ├── chroma_server.rs← Auto ChromaDB process manager (Port 8000)
 │   │   ├── llm.rs         ← Gemini/GPT/Claude/Ollama engine
 │   │   ├── orchestrator.rs← Agent brain (connects all modules)
 │   │   ├── memory.rs      ← ChromaDB vector memory
-│   │   ├── vision.rs      ← Real screen capture
-│   │   ├── speech.rs      ← Windows SAPI TTS/STT
+│   │   ├── vision.rs      ← Real screen capture & gesture tracking
+│   │   ├── speech.rs      ← Faster-Whisper + Piper offline engine
 │   │   ├── security.rs    ← File read/write guardrails
 │   │   ├── movement.rs    ← Orb autonomous movement
 │   │   └── mcp.rs         ← Plugin/MCP tool system

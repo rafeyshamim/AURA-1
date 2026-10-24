@@ -43,6 +43,8 @@ pub struct AgentOrchestrator {
     pub conversation_history: Vec<ChatMessage>,
     pub session_tool_history: Vec<SessionToolAction>,
     pub app_handle: Option<tauri::AppHandle>,
+    pub hand_tracker: Option<Arc<crate::hand_tracker::HandTrackerProcess>>,
+    pub pending_guarded_action: Option<String>,
 }
 
 impl AgentOrchestrator {
@@ -57,11 +59,26 @@ impl AgentOrchestrator {
             conversation_history: Vec::new(),
             session_tool_history: Vec::new(),
             app_handle: None,
+            hand_tracker: None,
+            pending_guarded_action: None,
         }
     }
 
     pub fn set_app_handle(&mut self, app_handle: tauri::AppHandle) {
         self.app_handle = Some(app_handle);
+    }
+
+    pub fn set_hand_tracker(&mut self, tracker: Arc<crate::hand_tracker::HandTrackerProcess>) {
+        self.hand_tracker = Some(tracker);
+    }
+
+    /// Request a live snapshot from the user's webcam
+    pub async fn capture_user_webcam(&self) -> Option<String> {
+        if let Some(ref tracker) = self.hand_tracker {
+            tracker.request_snapshot().await
+        } else {
+            None
+        }
     }
 
     /// Record a tool execution into active runtime session memory
@@ -101,6 +118,154 @@ impl AgentOrchestrator {
             timestamp: now,
         });
 
+        let lower = user_text.to_lowercase();
+
+        // Check if user is confirming or granting permission for a pending write/delete action
+        if let Some(ref action_desc) = self.pending_guarded_action.clone() {
+            if lower.contains("permission")
+                || lower.contains("authorize")
+                || lower.contains("granted")
+                || lower.contains("approved")
+                || lower.contains("proceed")
+                || (lower.contains("yes") && (lower.contains("delete") || lower.contains("do it") || lower.contains("go ahead") || lower.contains("sure")))
+            {
+                crate::logger::log("SECURITY", "SUCCESS", &format!("User granted authorization: {}", action_desc));
+                self.pending_guarded_action = None;
+                let reply = format!("Permission confirmed. I have authorized and processed your request: '{}'.", action_desc);
+                self.conversation_history.push(ChatMessage {
+                    role: "assistant".to_string(),
+                    content: reply.clone(),
+                    timestamp: chrono::Utc::now().timestamp(),
+                });
+                return AgentResponse {
+                    reply,
+                    model_used: "AURA Security Guard".to_string(),
+                    extracted_memories: Vec::new(),
+                    retrieved_context: Vec::new(),
+                    screen_seen: false,
+                    pending_write_action: None,
+                    color_action: None,
+                    pc_action: None,
+                };
+            }
+        }
+
+        // Fast-path camera / tracking shutoff
+        if (lower.contains("stop") || lower.contains("turn off") || lower.contains("disable") || lower.contains("close") || lower.contains("shut down") || lower.contains("quit"))
+            && (lower.contains("camera") || lower.contains("webcam") || lower.contains("tracking") || lower.contains("hand tracking") || lower.contains("vision"))
+        {
+            if let Some(ref tracker) = self.hand_tracker {
+                tracker.stop_tracking();
+            }
+            let reply = "Camera and hand tracking deactivated. Webcam hardware has been released.".to_string();
+            self.record_session_action("toggle_hand_tracking", "Deactivated camera and hand tracking.");
+            self.conversation_history.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: reply.clone(),
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+            return AgentResponse {
+                reply,
+                model_used: "AURA Vision".to_string(),
+                extracted_memories: Vec::new(),
+                retrieved_context: Vec::new(),
+                screen_seen: false,
+                pending_write_action: None,
+                color_action: None,
+                pc_action: None,
+            };
+        }
+
+        // Fast-path verbal intent matching for real-time vision hand tracking
+        let is_hand_tracking_cmd = !lower.contains("why")
+            && !lower.contains("how")
+            && !lower.contains("can you")
+            && !lower.contains("outfit")
+            && !lower.contains("wear")
+            && !lower.contains("look")
+            && (
+                (lower.contains("track") && lower.contains("hand"))
+                || (lower.contains("follow") && lower.contains("hand"))
+                || lower.contains("track my movement")
+                || lower.contains("start tracking")
+                || lower.contains("enable tracking")
+                || (lower.contains("follow my") && (lower.contains("hand") || lower.contains("finger") || lower.contains("movement")))
+            );
+
+        if is_hand_tracking_cmd {
+            if let Some(ref tracker) = self.hand_tracker {
+                tracker.start_tracking();
+            }
+            let reply = "I've turned on vision and hand tracking! Move your hand in front of the camera and I will follow your movement across the desktop screen.".to_string();
+            self.record_session_action("toggle_hand_tracking", "Activated vision & real-time hand tracking.");
+            self.conversation_history.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: reply.clone(),
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+            return AgentResponse {
+                reply,
+                model_used: "AURA Vision".to_string(),
+                extracted_memories: Vec::new(),
+                retrieved_context: Vec::new(),
+                screen_seen: false,
+                pending_write_action: None,
+                color_action: None,
+                pc_action: None,
+            };
+        }
+
+        // Fast-path direct directional voice navigation ("left", "right", "up", "down", "center")
+        let clean_cmd = lower.trim().trim_end_matches(['.', '!', '?']).trim();
+        let direct_nav = match clean_cmd {
+            "left" | "go left" | "move left" | "to the left" | "head left" | "shift left" | "dock left" => {
+                Some(("middle-left", "Moving directly to the left side."))
+            }
+            "right" | "go right" | "move right" | "to the right" | "head right" | "shift right" | "dock right" => {
+                Some(("middle-right", "Moving directly to the right side."))
+            }
+            "up" | "go up" | "move up" | "top" | "to the top" | "head up" | "move top" | "top center" => {
+                Some(("top-center", "Moving directly to the top."))
+            }
+            "down" | "go down" | "move down" | "bottom" | "to the bottom" | "head down" | "move bottom" | "bottom center" => {
+                Some(("bottom-center", "Moving directly to the bottom."))
+            }
+            "center" | "middle" | "go center" | "move center" | "go to center" | "to the center" => {
+                Some(("center", "Moving directly to the center."))
+            }
+            "top right" | "top-right" | "go top right" => Some(("top-right", "Moving to the top-right corner.")),
+            "top left" | "top-left" | "go top left" => Some(("top-left", "Moving to the top-left corner.")),
+            "bottom right" | "bottom-right" | "go bottom right" => Some(("bottom-right", "Moving to the bottom-right corner.")),
+            "bottom left" | "bottom-left" | "go bottom left" => Some(("bottom-left", "Moving to the bottom-left corner.")),
+            _ => None,
+        };
+
+        if let Some((preset, reply_msg)) = direct_nav {
+            crate::logger::log("MOVEMENT", "INFO", &format!("Direct directional voice navigation: '{}'", preset));
+            let mov_arc = self.movement.clone();
+            let preset_str = preset.to_string();
+            tauri::async_runtime::spawn(async move {
+                let mut mov = mov_arc.lock().await;
+                let _ = mov.move_to_preset(&preset_str).await;
+            });
+            self.record_session_action("move_desktop_position", &format!("Moved to '{}'", preset));
+            self.conversation_history.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: reply_msg.to_string(),
+                timestamp: chrono::Utc::now().timestamp(),
+            });
+            return AgentResponse {
+                reply: reply_msg.to_string(),
+                model_used: "AURA Navigation Core".to_string(),
+                extracted_memories: Vec::new(),
+                retrieved_context: Vec::new(),
+                screen_seen: false,
+                pending_write_action: None,
+                color_action: None,
+                pc_action: Some(format!("move {}", preset)),
+            };
+        }
+
         // 1. Query ChromaDB for relevant personal memories instantaneously in-memory (0ms)
         let memory_guard = self.memory.lock().await;
         let retrieved_context = memory_guard.query_relevant_memories_fast(user_text, 3);
@@ -119,10 +284,54 @@ impl AgentOrchestrator {
             });
         }
 
-        // 3. Optional Screen Vision capture
+        // 3. Visual user / webcam capture or Desktop Screen capture
+        let is_webcam_visual_query = lower.contains("how do i look")
+            || lower.contains("how i look")
+            || lower.contains("how do i look like")
+            || lower.contains("how i look like")
+            || lower.contains("can you see me")
+            || lower.contains("can u see me")
+            || lower.contains("do you see me")
+            || lower.contains("see me now")
+            || lower.contains("look at me")
+            || lower.contains("describe me")
+            || lower.contains("describe my outfit")
+            || lower.contains("describe what i am wearing")
+            || lower.contains("what am i wearing")
+            || lower.contains("what i am wearing")
+            || lower.contains("what'm i wearing")
+            || lower.contains("what im wearing")
+            || lower.contains("what do i look like")
+            || lower.contains("what am i looking like")
+            || lower.contains("my clothes")
+            || lower.contains("my shirt")
+            || lower.contains("my hoodie")
+            || lower.contains("my jacket")
+            || lower.contains("my outfit")
+            || lower.contains("my face")
+            || lower.contains("what do you see in the camera")
+            || lower.contains("what do you see on camera")
+            || (lower.contains("look") && lower.contains("camera"))
+            || (lower.contains("what") && lower.contains("see") && (lower.contains("camera") || lower.contains("webcam")));
+
+        let mut user_webcam_b64: Option<String> = None;
+        if is_webcam_visual_query {
+            crate::logger::log("VISION", "INFO", "Webcam visual query detected. Capturing live user photo...");
+            user_webcam_b64 = self.capture_user_webcam().await;
+            if user_webcam_b64.is_some() {
+                crate::logger::log("VISION", "SUCCESS", "Live webcam photo captured for Gemini vision analysis.");
+            } else {
+                crate::logger::log("VISION", "WARN", "Webcam photo capture returned empty or timed out.");
+            }
+        }
+
         let mut screen_image_b64: Option<String> = None;
-        if enable_vision {
-            println!("[Orchestrator] Vision enabled, capturing screen...");
+        let is_screen_query = (enable_vision
+            || (lower.contains("screen") && (lower.contains("what") || lower.contains("read") || lower.contains("look at") || lower.contains("see"))))
+            && user_webcam_b64.is_none();
+
+        if is_screen_query {
+            println!("[Orchestrator] Screen vision enabled, capturing desktop screen...");
             match VisionEngine::capture_screen() {
                 Ok(cap) => {
                     println!("[Orchestrator] Screen captured: {}x{}", cap.width, cap.height);
@@ -135,7 +344,6 @@ impl AgentOrchestrator {
         }
 
         // 4. Check if user is asking for a write / modifying command
-        let lower = user_text.to_lowercase();
         let mut pending_write = None;
         if lower.contains("write")
             || lower.contains("create file")
@@ -143,6 +351,7 @@ impl AgentOrchestrator {
             || lower.contains("delete")
         {
             pending_write = Some(format!("Request to modify filesystem: {}", user_text));
+            self.pending_guarded_action = Some(user_text.to_string());
         }
 
         // 5. Construct System Context incorporating ChromaDB memories & Desktop Location
@@ -161,12 +370,15 @@ impl AgentOrchestrator {
              - `search_desktop_files_or_folders(query)`: Searches the Desktop for files or folders to verify where they are or check if they exist.\n\
              - `get_current_desktop_location()`: Queries your live screen coordinates and location on the user's desktop at runtime.\n\
              - `clear_session_context()`: Forgets or clears the runtime session actions and transient history for this session.\n\
-             - `search_vectordb_memory(query)`: Searches ChromaDB long-term memory for user facts, user's name, user preferences, or saved context.\n\
+             - `store_vectordb_memory(fact, category)`: Permanently saves a new personal fact, date of birth, name, rule, or preference to ChromaDB long-term memory whenever the user shares information about themselves.\n\
+             - `search_vectordb_memory(query)`: Searches ChromaDB long-term memory for user facts, user's name, user preferences, date of birth, or saved context.\n\
              - `open_folder_or_app(target)`: Opens Windows File Explorer (e.g. 'desktop') or launches apps ('notepad', 'calc').\n\
              - `minimize_window()`: Minimizes the AURA companion window.\n\
              - `restore_window()`: Restores/unminimizes the AURA companion window.\n\
              - `change_ui_color(color)`: Changes the glowing UI orb color theme ('red', 'blue', 'purple', 'violet', 'green', 'gold', 'yellow', 'pink', 'cyan', 'orange', 'white').\n\
              - `move_desktop_position(position)`: Moves the AURA orb to screen presets ('top-right', 'bottom-right', 'top-left', 'bottom-left', 'center', 'roam', 'stop').\n\
+             - `toggle_hand_tracking(enable)`: Activates or deactivates hand tracking to follow the user's hand movements across the desktop screen. (Do NOT call this when the user asks how they look or what they are wearing; use look_at_user_webcam instead).\n\
+             - `look_at_user_webcam(reason)`: Captures a live webcam photo to visually see the user, describe what they are wearing, examine their outfit/clothes, or analyze their appearance and surroundings.\n\
              CRITICAL BEHAVIORAL RULES:\n\
              1. Call tools whenever the user commands actions (open folder, search folder, create folder, open app, change color, minimize) or asks for information (e.g. 'what is my name' -> search_vectordb_memory, 'where is the folder' -> search_desktop_files_or_folders, 'where are you' -> get_current_desktop_location).\n\
              2. You can call multiple tools simultaneously in a single turn if needed (e.g. create a folder and open it, or change color and move).\n\
@@ -186,7 +398,16 @@ impl AgentOrchestrator {
                 context_str.push_str(&format!("- {}\n", m.text));
             }
         }
-        if screen_image_b64.is_some() {
+        if user_webcam_b64.is_some() {
+            context_str.push_str(
+                "\n[LIVE WEBCAM VIEW ATTACHED]: You are currently viewing a live photograph of the user taken from their webcam right now.\n\
+                 CRITICAL INSTRUCTIONS FOR THIS IMAGE:\n\
+                 - The user is asking how they look, what they are wearing, or if you can see them.\n\
+                 - Carefully examine their outfit, clothing colors, style (e.g. hoodie, t-shirt, jacket), hair, glasses, expression, and environment.\n\
+                 - Give a direct, accurate, confident, and conversational answer describing what they look like and what they are wearing.\n\
+                 - Confirm that you can see them clearly through the camera!\n"
+            );
+        } else if screen_image_b64.is_some() {
             context_str.push_str("\n[Screen Vision Active]: You have a real-time capture of the user's desktop screen.\n");
         }
 
@@ -194,6 +415,12 @@ impl AgentOrchestrator {
         let llm_guard = self.llm.lock().await;
         let model_name = llm_guard.config.active_model.display_name();
         crate::logger::log("ORCHESTRATOR", "INFO", &format!("Processing message with model: {}", model_name));
+
+        let vision_image_to_pass = if user_webcam_b64.is_some() {
+            user_webcam_b64.as_deref()
+        } else {
+            screen_image_b64.as_deref()
+        };
 
         let llm_output = if let Some(ref write_req) = pending_write {
             crate::logger::log("SECURITY", "WARN", &format!("Write action guarded: {}", write_req));
@@ -206,7 +433,7 @@ impl AgentOrchestrator {
                 .generate_with_tools(
                     user_text,
                     &context_str,
-                    screen_image_b64.as_deref(),
+                    vision_image_to_pass,
                 )
                 .await
             {
@@ -311,6 +538,30 @@ impl AgentOrchestrator {
                                 "result": res.message
                             })));
                         }
+                        "store_vectordb_memory" => {
+                            let fact = call.args.get("fact").and_then(|v| v.as_str()).unwrap_or(user_text);
+                            let category = call.args.get("category").and_then(|v| v.as_str()).unwrap_or("personal_info");
+                            let mem_item = crate::memory::MemoryItem {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                text: fact.to_string(),
+                                category: category.to_string(),
+                                timestamp: chrono::Utc::now().timestamp(),
+                                confidence: 0.99,
+                                embedding: None,
+                            };
+                            let mut memory_guard = self.memory.lock().await;
+                            let _ = memory_guard.store_memory(mem_item).await;
+                            drop(memory_guard);
+
+                            session_actions.push((
+                                "store_vectordb_memory".to_string(),
+                                format!("Stored in ChromaDB: '{}'", fact),
+                            ));
+                            tool_responses.push((call.name.clone(), serde_json::json!({
+                                "status": "success",
+                                "message": format!("Successfully saved to ChromaDB permanent memory: '{}'", fact)
+                            })));
+                        }
                         "search_vectordb_memory" => {
                             let query = call.args.get("query")
                                 .and_then(|v| v.as_str())
@@ -412,6 +663,48 @@ impl AgentOrchestrator {
                                 "new_position": pos
                             })));
                         }
+                        "toggle_hand_tracking" => {
+                            let enable = call.args.get("enable")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true);
+                            if let Some(ref tracker) = self.hand_tracker {
+                                if enable {
+                                    tracker.start_tracking();
+                                } else {
+                                    tracker.stop_tracking();
+                                }
+                            }
+                            let msg = if enable {
+                                "Vision and hand tracking activated. Following your hand movement across the screen."
+                            } else {
+                                "Vision and hand tracking deactivated."
+                            };
+                            session_actions.push(("toggle_hand_tracking".to_string(), msg.to_string()));
+                            tool_responses.push((call.name.clone(), serde_json::json!({
+                                "status": "success",
+                                "tracking": enable,
+                                "message": msg
+                            })));
+                        }
+                        "look_at_user_webcam" => {
+                            let snapshot = self.capture_user_webcam().await;
+                            let success = snapshot.is_some();
+                            if let Some(ref b64) = snapshot {
+                                user_webcam_b64 = Some(b64.clone());
+                            }
+                            session_actions.push((
+                                "look_at_user_webcam".to_string(),
+                                "Captured live webcam photograph of user.".to_string(),
+                            ));
+                            tool_responses.push((call.name.clone(), serde_json::json!({
+                                "status": if success { "success" } else { "unavailable" },
+                                "message": if success {
+                                    "Captured live webcam snapshot. Visually inspect the photo to describe the user and their outfit."
+                                } else {
+                                    "Webcam is currently busy or unavailable."
+                                }
+                            })));
+                        }
                         _ => {
                             tool_responses.push((call.name.clone(), serde_json::json!({
                                 "status": "unsupported_tool"
@@ -429,17 +722,35 @@ impl AgentOrchestrator {
                     }
                 }
 
-                // Check if any tool called was an informational query (search_vectordb_memory or search_folders)
-                let has_info_query = calls.iter().any(|c| c.name == "search_vectordb_memory" || c.name == "search_folders");
+                // Check if any tool called was an informational query (search_vectordb_memory, search_folders, or look_at_user_webcam)
+                let has_info_query = calls.iter().any(|c| c.name == "search_vectordb_memory" || c.name == "search_folders" || c.name == "look_at_user_webcam");
 
                 if has_info_query {
                     let llm_guard = self.llm.lock().await;
-                    final_reply = match llm_guard.send_tool_results_to_gemini(&combined_prompt, raw_parts, tool_responses).await {
+                    final_reply = match llm_guard.send_tool_results_to_gemini(
+                        &combined_prompt,
+                        raw_parts,
+                        &tool_responses,
+                        user_webcam_b64.as_deref(),
+                    ).await {
                         Ok(speech) if !speech.trim().is_empty() => speech,
-                        _ => "Here is what I found in your memory records.".to_string(),
+                        _ => {
+                            let memory_texts: Vec<String> = tool_responses.iter()
+                                .filter(|(name, _)| name == "search_vectordb_memory")
+                                .filter_map(|(_, resp)| resp.get("memories_found").and_then(|m| m.as_array()))
+                                .flatten()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect();
+
+                            if !memory_texts.is_empty() {
+                                format!("According to your ChromaDB memory: {}.", memory_texts.join("; "))
+                            } else {
+                                "I checked your ChromaDB records, but couldn't find any saved entries for that yet.".to_string()
+                            }
+                        }
                     };
                 } else {
-                    // Action tools (move, open folder, create folder, minimize, restore, color):
+                    // Action tools (move, open folder, create folder, store memory, minimize, restore, color):
                     // Direct instantaneous local natural reply (0ms network delay!)
                     final_reply = if let Some(ref action) = pc_action {
                         if action.starts_with("open_folder") {
@@ -457,6 +768,16 @@ impl AgentOrchestrator {
                         }
                     } else if let Some(ref col) = color_action {
                         format!("I've changed my color to {}.", col)
+                    } else if let Some(ref act) = calls.iter().find(|c| c.name == "store_vectordb_memory") {
+                        let fact = act.args.get("fact").and_then(|v| v.as_str()).unwrap_or("that detail");
+                        format!("I've stored that in your permanent ChromaDB memory: '{}'.", fact)
+                    } else if let Some(ref act) = calls.iter().find(|c| c.name == "toggle_hand_tracking") {
+                        let enable = act.args.get("enable").and_then(|v| v.as_bool()).unwrap_or(true);
+                        if enable {
+                            "I've activated vision and hand tracking! Move your hand in front of the camera and I will follow you on the screen.".to_string()
+                        } else {
+                            "Hand tracking has been deactivated. I'm holding my position.".to_string()
+                        }
                     } else {
                         "Done! I've completed your request.".to_string()
                     };

@@ -163,6 +163,24 @@ pub fn get_gemini_tools() -> Value {
                 }
             },
             {
+                "name": "store_vectordb_memory",
+                "description": "Store a new personal fact, preference, date of birth, name, rule, or detail permanently into ChromaDB vector memory. Use this whenever the user shares information about themselves (e.g. date of birth, name, house, favorites) or asks you to remember something.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "fact": {
+                            "type": "STRING",
+                            "description": "The exact fact or information to remember permanently (e.g. 'User date of birth is October 2004', 'User name is Rafi')"
+                        },
+                        "category": {
+                            "type": "STRING",
+                            "description": "'personal_info', 'preference', 'instruction', or 'general'"
+                        }
+                    },
+                    "required": ["fact"]
+                }
+            },
+            {
                 "name": "search_vectordb_memory",
                 "description": "Search long-term ChromaDB vector memory for user facts, past conversation history, user's name, user preferences, or saved context.",
                 "parameters": {
@@ -232,6 +250,33 @@ pub fn get_gemini_tools() -> Value {
                         }
                     },
                     "required": ["position"]
+                }
+            },
+            {
+                "name": "toggle_hand_tracking",
+                "description": "Start or stop tracking the user's hand gestures and following hand movements on screen. Use this ONLY when the user asks you to follow or track their hand movements. Do NOT use this tool to look at the user or describe their clothes.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "enable": {
+                            "type": "BOOLEAN",
+                            "description": "true to follow hand movement, false to stop following"
+                        }
+                    },
+                    "required": ["enable"]
+                }
+            },
+            {
+                "name": "look_at_user_webcam",
+                "description": "Capture a live photo from the user's webcam to visually see the user, inspect how they look, describe their outfit or clothing, see what they are holding, or analyze their appearance and surroundings.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "reason": {
+                            "type": "STRING",
+                            "description": "Why you need to look at the user (e.g. 'describe outfit', 'inspect user appearance', 'see user')"
+                        }
+                    }
                 }
             }
         ]
@@ -825,12 +870,13 @@ impl LlmEngine {
         Err(format!("All Gemini model endpoints failed with tools. Last error: {}", last_error))
     }
 
-    /// 6. Send Tool Execution Responses back to Gemini for final natural speech synthesis
+    /// 6. Send Tool Execution Responses to Gemini for final natural speech synthesis
     pub async fn send_tool_results_to_gemini(
         &self,
         combined_prompt: &str,
-        raw_model_parts: Vec<Value>,
-        tool_responses: Vec<(String, Value)>,
+        _raw_model_parts: Vec<Value>,
+        tool_responses: &[(String, Value)],
+        image_base64: Option<&str>,
     ) -> Result<String, String> {
         let api_key = match &self.config.gemini_key {
             Some(key) if !key.trim().is_empty() => key.clone(),
@@ -841,39 +887,37 @@ impl LlmEngine {
             return Err("GEMINI_API_KEY is not set. Please add it to your .env file.".to_string());
         }
 
-        let mut function_parts = Vec::new();
+        let mut synthesis_prompt = format!(
+            "You are AURA-1, the intelligent desktop AI companion.\n\
+             The user asked or said: \"{}\"\n\n\
+             The following native background tools were executed with these exact results:\n",
+            combined_prompt
+        );
+
         for (name, response) in tool_responses {
-            function_parts.push(json!({
-                "functionResponse": {
-                    "name": name,
-                    "response": {
-                        "output": response
-                    }
+            synthesis_prompt.push_str(&format!("- Tool '{}': {}\n", name, response));
+        }
+
+        synthesis_prompt.push_str(
+            "\nBased on these tool execution results, provide a warm, direct, natural, and concise spoken reply (1-2 sentences) directly answering the user. Do not narrate tool calls."
+        );
+
+        let mut parts = Vec::new();
+        if let Some(img_b64) = image_base64 {
+            parts.push(json!({
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": img_b64
                 }
             }));
         }
-
-        let contents = json!([
-            {
-                "role": "user",
-                "parts": [{ "text": combined_prompt }]
-            },
-            {
-                "role": "model",
-                "parts": raw_model_parts
-            },
-            {
-                "role": "function",
-                "parts": function_parts
-            }
-        ]);
+        parts.push(json!({ "text": synthesis_prompt }));
 
         let req_body = json!({
-            "contents": contents,
-            "tools": get_gemini_tools(),
+            "contents": [{ "parts": parts }],
             "generationConfig": {
                 "temperature": 0.3,
-                "maxOutputTokens": 256,
+                "maxOutputTokens": 200,
                 "topP": 0.9
             }
         });
