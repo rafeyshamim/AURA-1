@@ -22,9 +22,9 @@ SAMPLE_RATE = 16000
 BLOCK_SIZE = 1024  # ~64ms per block
 CHANNELS = 1
 VAD_ENERGY_THRESHOLD = 0.016  # RMS threshold for speech
-SILENCE_DURATION_SEC = 1.35   # Allow natural human pause before ending speech turn
-MIN_SPEECH_DURATION_SEC = 0.7 # Minimum speech length to transcribe
-PRE_BUFFER_SEC = 0.3          # Audio kept before speech trigger
+SILENCE_DURATION_SEC = 0.55   # Ultra-fast conversational end-of-speech detection (~550ms)
+MIN_SPEECH_DURATION_SEC = 0.40 # Fast trigger for short commands ("yes", "stop", "open")
+PRE_BUFFER_SEC = 0.25          # Audio kept before speech trigger
 
 # State
 is_speaking = False
@@ -32,12 +32,12 @@ is_running = True
 audio_queue = queue.Queue()
 command_queue = queue.Queue()
 
-# Clean markdown for natural TTS reading
+# Clean markdown and internal tags for natural TTS reading
 def clean_for_tts(text: str) -> str:
     text = re.sub(r'```[\s\S]*?```', '', text) # remove code blocks
     text = re.sub(r'`[^`]*`', '', text)        # remove inline code
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text) # markdown links to text
-    text = re.sub(r'\[MOVE:[^\]]+\]', '', text) # remove internal movement tags
+    text = re.sub(r'\[[A-Z_]+:[^\]]*\]', '', text) # remove internal tags like [MOVE:...], [PC:...], [COLOR:...]
     text = re.sub(r'⚠️.*?Error:?', '', text)    # remove warning headers
     text = re.sub(r'https?://\S+', '', text)   # remove URLs
     text = re.sub(r'[*_#~>]', ' ', text)        # remove asterisks, hashes, etc.
@@ -81,55 +81,57 @@ def init_tts():
 def speak_text(raw_text: str):
     global is_speaking
     is_speaking = True
-    clean_text = clean_for_tts(raw_text)
-    if not clean_text:
+    try:
+        clean_text = clean_for_tts(raw_text)
+        if not clean_text:
+            return
+
+        emit({"type": "state", "state": "speaking", "text": clean_text})
+
+        played = False
+        if piper_voice is not None:
+            try:
+                import io, wave
+                buf = io.BytesIO()
+                with wave.open(buf, 'wb') as wav_file:
+                    piper_voice.synthesize_wav(clean_text, wav_file)
+                buf.seek(0)
+                with wave.open(buf, 'rb') as wav_file:
+                    n_frames = wav_file.getnframes()
+                    if n_frames > 0:
+                        framerate = wav_file.getframerate()
+                        frames = wav_file.readframes(n_frames)
+                        audio_data = np.frombuffer(frames, dtype=np.int16)
+                        if len(audio_data) > 0:
+                            sd.play(audio_data, samplerate=framerate)
+                            sd.wait()
+                            played = True
+            except Exception as e:
+                emit({"type": "log", "category": "TTS", "level": "WARN", "message": f"Piper playback warning: {e}"})
+
+        # Reliable fallback to pyttsx3 if piper produced 0 frames or failed
+        if not played and pyttsx_engine is not None:
+            try:
+                pyttsx_engine.say(clean_text)
+                pyttsx_engine.runAndWait()
+                played = True
+            except Exception as e:
+                emit({"type": "log", "category": "TTS", "level": "ERROR", "message": f"pyttsx3 error: {e}"})
+
+        # Small pause to prevent microphone pickup of speaker reverb
+        time.sleep(0.2)
+    except Exception as e:
+        emit({"type": "log", "category": "TTS", "level": "ERROR", "message": f"TTS speak error: {e}"})
+    finally:
+        # Drain any residual audio frames accumulated during speech
+        while not audio_queue.empty():
+            try:
+                audio_queue.get_nowait()
+            except queue.Empty:
+                break
         is_speaking = False
         emit({"type": "speech_done"})
-        return
-
-    emit({"type": "state", "state": "speaking", "text": clean_text})
-
-    played = False
-    try:
-        if piper_voice is not None:
-            import io, wave
-            buf = io.BytesIO()
-            with wave.open(buf, 'wb') as wav_file:
-                piper_voice.synthesize_wav(clean_text, wav_file)
-            buf.seek(0)
-            with wave.open(buf, 'rb') as wav_file:
-                n_frames = wav_file.getnframes()
-                if n_frames > 0:
-                    framerate = wav_file.getframerate()
-                    frames = wav_file.readframes(n_frames)
-                    audio_data = np.frombuffer(frames, dtype=np.int16)
-                    if len(audio_data) > 0:
-                        sd.play(audio_data, samplerate=framerate)
-                        sd.wait()
-                        played = True
-    except Exception as e:
-        emit({"type": "log", "category": "TTS", "level": "WARN", "message": f"Piper playback warning: {e}"})
-
-    # Reliable fallback to pyttsx3 if piper produced 0 frames or failed
-    if not played and pyttsx_engine is not None:
-        try:
-            pyttsx_engine.say(clean_text)
-            pyttsx_engine.runAndWait()
-            played = True
-        except Exception as e:
-            emit({"type": "log", "category": "TTS", "level": "ERROR", "message": f"pyttsx3 error: {e}"})
-
-    # Small pause to prevent microphone pickup of speaker reverb
-    time.sleep(0.25)
-    # Drain any residual audio frames accumulated during speech
-    while not audio_queue.empty():
-        try:
-            audio_queue.get_nowait()
-        except queue.Empty:
-            break
-    is_speaking = False
-    emit({"type": "speech_done"})
-    emit({"type": "state", "state": "listening", "text": ""})
+        emit({"type": "state", "state": "listening", "text": ""})
 
 # STT Whisper Model Initialization
 whisper_model = None
@@ -141,8 +143,9 @@ def init_stt():
         import torch
         device = "cuda" if torch.cuda.is_available() else "cpu"
         compute_type = "float16" if device == "cuda" else "int8"
-        emit({"type": "log", "category": "STT", "level": "INFO", "message": f"Loading faster-whisper base.en on {device} ({compute_type})..."})
-        whisper_model = WhisperModel("base.en", device=device, compute_type=compute_type)
+        cpu_threads = 4 if device == "cpu" else 1
+        emit({"type": "log", "category": "STT", "level": "INFO", "message": f"Loading faster-whisper base.en on {device} ({compute_type}, {cpu_threads} threads)..."})
+        whisper_model = WhisperModel("base.en", device=device, compute_type=compute_type, cpu_threads=cpu_threads)
         emit({"type": "log", "category": "STT", "level": "SUCCESS", "message": f"Whisper STT ready on {device}."})
     except Exception as e:
         emit({"type": "log", "category": "STT", "level": "ERROR", "message": f"Whisper STT init error: {e}"})
@@ -153,13 +156,22 @@ def audio_callback(indata, frames, time_info, status):
         audio_queue.put(indata[:, 0].copy())
 
 def stdin_listener():
-    """Reads JSON commands from backend on stdin."""
+    """Reads JSON commands from backend on stdin without buffering delay."""
     global is_running
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
+    try:
+        if hasattr(sys.stdin, "reconfigure"):
+            sys.stdin.reconfigure(line_buffering=True)
+    except Exception:
+        pass
+
+    while is_running:
         try:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            line = line.strip()
+            if not line:
+                continue
             cmd = json.loads(line)
             command_queue.put(cmd)
         except Exception as e:
@@ -273,7 +285,8 @@ def main():
                                     full_audio,
                                     beam_size=1,
                                     language="en",
-                                    vad_filter=True
+                                    temperature=0.0,
+                                    vad_filter=False
                                 )
                                 transcribed_text = " ".join([s.text for s in segments]).strip()
                                 

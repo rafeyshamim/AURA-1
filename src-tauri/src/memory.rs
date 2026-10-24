@@ -243,6 +243,35 @@ impl ChromaMemoryEngine {
         Ok(())
     }
 
+    /// Fast zero-latency in-memory keyword and relevance query (runs in 0.1ms without network call)
+    pub fn query_relevant_memories_fast(&self, prompt: &str, top_k: usize) -> Vec<MemoryItem> {
+        let prompt_lower = prompt.to_lowercase();
+        let prompt_words: Vec<&str> = prompt_lower.split_whitespace().filter(|w| w.len() > 3).collect();
+
+        let mut scored: Vec<(usize, MemoryItem)> = self.local_cache
+            .iter()
+            .filter_map(|m| {
+                let m_lower = m.text.to_lowercase();
+                let matches = prompt_words.iter().filter(|&&w| m_lower.contains(w)).count();
+                if matches > 0 {
+                    Some((matches, m.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut results: Vec<MemoryItem> = scored.into_iter().take(top_k).map(|s| s.1).collect();
+
+        if results.is_empty() {
+            results = self.local_cache.iter().rev().take(top_k).cloned().collect();
+        }
+
+        results.truncate(top_k);
+        results
+    }
+
     /// Query relevant memory for a given prompt using semantic vector search and keyword match
     pub async fn query_relevant_memories(&self, prompt: &str, top_k: usize) -> Vec<MemoryItem> {
         let query_emb = self.generate_embedding(prompt).await;

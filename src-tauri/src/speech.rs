@@ -149,46 +149,45 @@ impl SpeechProcess {
                                     let writer = stdin_writer.clone();
                                     let busy_flag = is_busy.clone();
 
+                                    // Watchdog: force-recover if stuck for more than 12 seconds
+                                    let watchdog_busy = is_busy.clone();
+                                    let watchdog_app = app_handle.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(12)).await;
+                                        if watchdog_busy.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                                            crate::logger::log("SPEECH", "WARN", "Speech watchdog: auto-recovered agent from stuck busy state.");
+                                            let _ = watchdog_app.emit("aura-state", serde_json::json!({
+                                                "state": "listening",
+                                                "text": ""
+                                            }));
+                                        }
+                                    });
+
                                     tauri::async_runtime::spawn(async move {
                                         let mut orch_guard = orch.lock().await;
                                         let res = orch_guard.process_user_message(&user_text, false).await;
                                         crate::logger::log("LLM", "SUCCESS", &format!("Reply: '{}'", res.reply));
 
-                                        // 1. Emit Color Theme change if present
+                                        // Color and PC tools are executed atomically and concurrently inside orchestrator
                                         if let Some(ref color) = res.color_action {
-                                            crate::logger::log("THEME", "INFO", &format!("Applying dynamic color theme: '{}'", color));
                                             let _ = app_h.emit("aura-color", serde_json::json!({
                                                 "color": color
                                             }));
-                                        }
-
-                                        // 2. Execute PC automation action if present
-                                        if let Some(ref pc_cmd) = res.pc_action {
-                                            crate::logger::log("PC_ACTION", "INFO", &format!("Executing PC voice command: '{}'", pc_cmd));
-                                            let action_res = if pc_cmd == "minimize" {
-                                                crate::pc_controller::PcController::minimize_window(&app_h)
-                                            } else if pc_cmd == "restore" || pc_cmd == "unminimize" {
-                                                crate::pc_controller::PcController::unminimize_window(&app_h)
-                                            } else if let Some(folder_name) = pc_cmd.strip_prefix("create_folder ") {
-                                                crate::pc_controller::PcController::create_folder(folder_name, None)
-                                            } else if let Some(target) = pc_cmd.strip_prefix("open ") {
-                                                crate::pc_controller::PcController::open_path_or_app(target)
-                                            } else {
-                                                crate::pc_controller::PcController::execute_voice_command(&app_h, pc_cmd)
-                                                    .unwrap_or(crate::pc_controller::PcActionResult {
-                                                        success: true,
-                                                        message: "Command processed".to_string(),
-                                                        action_type: "custom".to_string(),
-                                                    })
-                                            };
-                                            crate::logger::log("PC_ACTION", if action_res.success { "SUCCESS" } else { "ERROR" }, &action_res.message);
                                         }
 
                                         let _ = app_h.emit("aura-agent-speech", serde_json::json!({
                                             "text": res.reply
                                         }));
 
-                                        Self::write_command(&writer, "speak", &res.reply);
+                                        if res.reply.trim().is_empty() {
+                                            busy_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+                                            let _ = app_h.emit("aura-state", serde_json::json!({
+                                                "state": "listening",
+                                                "text": ""
+                                            }));
+                                        } else {
+                                            Self::write_command(&writer, "speak", &res.reply);
+                                        }
                                     });
                                 }
                             }

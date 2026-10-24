@@ -25,6 +25,10 @@ pub struct MovementController {
     pub roam_mode: RoamMode,
     pub screen_width: i32,
     pub screen_height: i32,
+    pub monitor_x: i32,
+    pub monitor_y: i32,
+    pub window_width: i32,
+    pub window_height: i32,
     pub is_roaming: Arc<AtomicBool>,
     step_angle: f32,
     app_handle: Option<AppHandle>,
@@ -37,6 +41,10 @@ impl MovementController {
             roam_mode: RoamMode::Stationary,
             screen_width: 1920,
             screen_height: 1080,
+            monitor_x: 0,
+            monitor_y: 0,
+            window_width: 540,
+            window_height: 460,
             is_roaming: Arc::new(AtomicBool::new(false)),
             step_angle: 0.0,
             app_handle: None,
@@ -48,57 +56,83 @@ impl MovementController {
         self.refresh_display_info();
     }
 
-    /// Refresh actual screen bounds and window position from the OS
+    /// Refresh actual screen bounds and window position dynamically from the OS at runtime
     pub fn refresh_display_info(&mut self) {
         if let Some(app) = &self.app_handle {
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
                     let size = monitor.size();
+                    let mpos = monitor.position();
                     self.screen_width = size.width as i32;
                     self.screen_height = size.height as i32;
+                    self.monitor_x = mpos.x;
+                    self.monitor_y = mpos.y;
                 }
                 if let Ok(pos) = window.outer_position() {
                     self.current_position.x = pos.x;
                     self.current_position.y = pos.y;
                 }
+                if let Ok(sz) = window.outer_size() {
+                    self.window_width = sz.width as i32;
+                    self.window_height = sz.height as i32;
+                }
             }
         }
     }
 
-    /// Return a human-readable description of where AURA is located
+    /// Return an accurate human-readable description of where AURA is located dynamically at runtime
     pub fn get_location_description(&mut self) -> String {
         self.refresh_display_info();
 
-        let x = self.current_position.x;
-        let y = self.current_position.y;
-        let sw = self.screen_width.max(1);
-        let sh = self.screen_height.max(1);
+        let mon_w = self.screen_width.max(1);
+        let mon_h = self.screen_height.max(1);
+        let mon_x = self.monitor_x;
+        let mon_y = self.monitor_y;
+        let win_w = self.window_width.max(1);
+        let win_h = self.window_height.max(1);
 
-        let horiz = if x < sw / 3 {
+        // Calculate center of the visual orb relative to the active display monitor
+        let orb_center_x = (self.current_position.x + win_w / 2) - mon_x;
+        let orb_center_y = (self.current_position.y + win_h / 2) - mon_y;
+
+        let horiz = if orb_center_x < (mon_w * 38) / 100 {
             "left"
-        } else if x > (sw * 2) / 3 {
+        } else if orb_center_x > (mon_w * 62) / 100 {
             "right"
         } else {
             "center"
         };
 
-        let vert = if y < sh / 3 {
+        let vert = if orb_center_y < (mon_h * 38) / 100 {
             "top"
-        } else if y > (sh * 2) / 3 {
+        } else if orb_center_y > (mon_h * 62) / 100 {
             "bottom"
         } else {
             "middle"
         };
 
         let region = match (vert, horiz) {
-            ("middle", "center") => "center of the screen",
-            (v, h) => &format!("{}-{} area", v, h),
+            ("middle", "center") => "center of your screen".to_string(),
+            ("top", "center") => "top-center of your screen".to_string(),
+            ("bottom", "center") => "bottom-center of your screen".to_string(),
+            ("middle", "left") => "middle-left edge of your screen".to_string(),
+            ("middle", "right") => "middle-right edge of your screen".to_string(),
+            ("top", "left") => "top-left corner of your screen".to_string(),
+            ("top", "right") => "top-right corner of your screen".to_string(),
+            ("bottom", "left") => "bottom-left corner of your screen".to_string(),
+            ("bottom", "right") => "bottom-right corner of your screen".to_string(),
+            (v, h) => format!("{}-{} area of your screen", v, h),
+        };
+
+        let roam_status = if self.is_roaming.load(Ordering::SeqCst) {
+            "Floating autonomously"
+        } else {
+            "Stationary"
         };
 
         format!(
-            "Currently positioned in the {}. Roaming status: {}.",
-            region,
-            if self.is_roaming.load(Ordering::SeqCst) { "Floating" } else { "Stationary" }
+            "Currently positioned at the {} (X: {}, Y: {} on display {}x{}). Status: {}.",
+            region, self.current_position.x, self.current_position.y, mon_w, mon_h, roam_status
         )
     }
 
@@ -117,10 +151,17 @@ impl MovementController {
             None => return Err("Main window not found".to_string()),
         };
 
+        let win_w = self.window_width;
+        let win_h = self.window_height;
+        let min_x = self.monitor_x;
+        let max_x = self.monitor_x + (self.screen_width - win_w).max(0);
+        let min_y = self.monitor_y;
+        let max_y = self.monitor_y + (self.screen_height - win_h).max(0);
+
         let start_x = self.current_position.x as f32;
         let start_y = self.current_position.y as f32;
-        let dest_x = target_x.clamp(0, (self.screen_width - 540).max(0)) as f32;
-        let dest_y = target_y.clamp(0, (self.screen_height - 460).max(0)) as f32;
+        let dest_x = target_x.clamp(min_x, max_x) as f32;
+        let dest_y = target_y.clamp(min_y, max_y) as f32;
 
         let steps = 30;
         for i in 1..=steps {
@@ -139,18 +180,28 @@ impl MovementController {
         Ok(())
     }
 
-    /// Move to named preset positions
+    /// Move to named preset positions dynamically calculated at runtime
     pub async fn move_to_preset(&mut self, preset: &str) -> Result<String, String> {
         self.refresh_display_info();
-        let sw = self.screen_width;
-        let sh = self.screen_height;
+        let mon_w = self.screen_width;
+        let mon_h = self.screen_height;
+        let mon_x = self.monitor_x;
+        let mon_y = self.monitor_y;
+        let win_w = self.window_width;
+        let win_h = self.window_height;
+        let pad_x = 30;
+        let pad_y = 30;
 
         let (tx, ty) = match preset.to_lowercase().replace('_', "-").as_str() {
-            "top-right" | "topright" | "tr" => (sw - 560, 40),
-            "bottom-right" | "bottomright" | "br" | "dock" => (sw - 560, sh - 480),
-            "top-left" | "topleft" | "tl" => (40, 40),
-            "bottom-left" | "bottomleft" | "bl" => (40, sh - 480),
-            "center" | "middle" => ((sw - 540) / 2, (sh - 460) / 2),
+            "top-right" | "topright" | "tr" => (mon_x + mon_w - win_w - pad_x, mon_y + pad_y),
+            "bottom-right" | "bottomright" | "br" | "dock" => (mon_x + mon_w - win_w - pad_x, mon_y + mon_h - win_h - pad_y),
+            "top-left" | "topleft" | "tl" => (mon_x + pad_x, mon_y + pad_y),
+            "bottom-left" | "bottomleft" | "bl" => (mon_x + pad_x, mon_y + mon_h - win_h - pad_y),
+            "center" | "middle" => (mon_x + (mon_w - win_w) / 2, mon_y + (mon_h - win_h) / 2),
+            "top-center" | "top" => (mon_x + (mon_w - win_w) / 2, mon_y + pad_y),
+            "bottom-center" | "bottom" => (mon_x + (mon_w - win_w) / 2, mon_y + mon_h - win_h - pad_y),
+            "middle-left" | "left" => (mon_x + pad_x, mon_y + (mon_h - win_h) / 2),
+            "middle-right" | "right" => (mon_x + mon_w - win_w - pad_x, mon_y + (mon_h - win_h) / 2),
             other => return Err(format!("Unknown position preset: {}", other)),
         };
 
@@ -165,14 +216,19 @@ impl MovementController {
             return;
         }
 
+        self.refresh_display_info();
         self.is_roaming.store(true, Ordering::SeqCst);
         self.roam_mode = RoamMode::AutonomousFloat;
         crate::logger::log("MOVEMENT", "INFO", "AURA autonomous floating roam activated.");
 
         let app_opt = self.app_handle.clone();
         let is_roam_flag = self.is_roaming.clone();
-        let sw = self.screen_width;
-        let sh = self.screen_height;
+        let mon_w = self.screen_width;
+        let mon_h = self.screen_height;
+        let mon_x = self.monitor_x;
+        let mon_y = self.monitor_y;
+        let win_w = self.window_width;
+        let win_h = self.window_height;
 
         tauri::async_runtime::spawn(async move {
             let app = match app_opt {
@@ -185,10 +241,10 @@ impl MovementController {
             };
 
             let mut angle: f32 = 0.0;
-            let center_x = ((sw - 540) / 2) as f32;
-            let center_y = ((sh - 460) / 2) as f32;
-            let radius_x = 380.0_f32;
-            let radius_y = 220.0_f32;
+            let center_x = (mon_x + (mon_w - win_w) / 2) as f32;
+            let center_y = (mon_y + (mon_h - win_h) / 2) as f32;
+            let radius_x = ((mon_w - win_w) / 3).max(100) as f32;
+            let radius_y = ((mon_h - win_h) / 4).max(80) as f32;
 
             while is_roam_flag.load(Ordering::SeqCst) {
                 angle += 0.025;
@@ -200,9 +256,14 @@ impl MovementController {
                 let new_x = (center_x + angle.sin() * radius_x) as i32;
                 let new_y = (center_y + (angle * 2.0).cos() * radius_y) as i32;
 
+                let min_x = mon_x + 30;
+                let max_x = mon_x + mon_w - win_w - 30;
+                let min_y = mon_y + 30;
+                let max_y = mon_y + mon_h - win_h - 30;
+
                 let _ = window.set_position(Position::Physical(PhysicalPosition {
-                    x: new_x.clamp(40, (sw - 560).max(40)),
-                    y: new_y.clamp(40, (sh - 480).max(40)),
+                    x: new_x.clamp(min_x, max_x),
+                    y: new_y.clamp(min_y, max_y),
                 }));
 
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;

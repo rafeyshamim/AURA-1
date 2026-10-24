@@ -7,6 +7,7 @@ const speechText = document.getElementById('speechText');
 const statusDot = document.getElementById('statusDot');
 const orbContainer = document.getElementById('orbContainer');
 const squintEyes = document.getElementById('squintEyes');
+const agentMouth = document.getElementById('agentMouth');
 
 let fadeTimer = null;
 
@@ -269,14 +270,17 @@ if (orbContainer) {
   });
 }
 
-// Click on Orb gives playful squint bounce
+// Click on Orb gives playful squint and smile bounce
 if (squintingOrb) {
   squintingOrb.addEventListener('click', () => {
     squintingOrb.style.transform = 'scale(0.9)';
     if (squintEyes) squintEyes.style.transform = 'scaleX(1.3) scaleY(0.4)';
+    const mouthShape = agentMouth ? agentMouth.querySelector('.mouth-shape') : null;
+    if (mouthShape) mouthShape.style.transform = 'scale(1.4)';
     setTimeout(() => {
       squintingOrb.style.transform = '';
       if (squintEyes) squintEyes.style.transform = '';
+      if (mouthShape) mouthShape.style.transform = '';
     }, 220);
   });
 }

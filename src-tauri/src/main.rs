@@ -154,6 +154,16 @@ async fn create_desktop_folder(folder_name: String) -> Result<PcActionResult, St
 }
 
 #[tauri::command]
+async fn find_and_open_folder(folder_name: String) -> Result<PcActionResult, String> {
+    Ok(pc_controller::PcController::find_and_open_folder(&folder_name))
+}
+
+#[tauri::command]
+async fn search_folders(query: String) -> Result<PcActionResult, String> {
+    Ok(pc_controller::PcController::search_folders(&query))
+}
+
+#[tauri::command]
 async fn open_desktop_target(target: String) -> Result<PcActionResult, String> {
     Ok(pc_controller::PcController::open_path_or_app(&target))
 }
@@ -229,7 +239,8 @@ fn main() {
                 let orch_mov = orchestrator.clone();
                 let handle_mov = handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let orch = orch_mov.lock().await;
+                    let mut orch = orch_mov.lock().await;
+                    orch.set_app_handle(handle_mov.clone());
                     let mut mov = orch.movement.lock().await;
                     mov.set_app_handle(handle_mov);
                 });
@@ -261,6 +272,8 @@ fn main() {
             get_desktop_location,
             minimize_window,
             create_desktop_folder,
+            find_and_open_folder,
+            search_folders,
             open_desktop_target,
             query_chroma_memory,
             store_chroma_memory,

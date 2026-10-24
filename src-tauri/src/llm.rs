@@ -71,6 +71,173 @@ pub struct LlmConfig {
     pub gemini_key: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub name: String,
+    pub args: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LlmOutput {
+    Text(String),
+    ToolCalls {
+        calls: Vec<ToolCall>,
+        raw_parts: Vec<Value>,
+        combined_prompt: String,
+    },
+}
+
+pub fn get_gemini_tools() -> Value {
+    json!([{
+        "function_declarations": [
+            {
+                "name": "create_desktop_folder",
+                "description": "Create a new folder directly on the user's active Windows Desktop. Returns the created path.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "folder_name": {
+                            "type": "STRING",
+                            "description": "Name of the folder to create on the desktop"
+                        }
+                    },
+                    "required": ["folder_name"]
+                }
+            },
+            {
+                "name": "search_desktop_files_or_folders",
+                "description": "Search for existing folders or files on the user's Desktop to verify where they are located or check their existence.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": "Name or keyword to search for on the desktop (e.g. 'Rafe', 'Project')"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "find_and_open_folder",
+                "description": "Search for a folder by name across the user's Desktop, Documents, Downloads, or user directories and immediately open it in Windows File Explorer.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "folder_name": {
+                            "type": "STRING",
+                            "description": "Name of the folder to search for and open (e.g. 'traffic', 'Rafe', 'Project 7', 'Downloads')"
+                        }
+                    },
+                    "required": ["folder_name"]
+                }
+            },
+            {
+                "name": "search_folders",
+                "description": "Search for folders matching a name or keyword across the user's Desktop and computer directories without opening them.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": "Folder name or partial keyword to search for"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "get_current_desktop_location",
+                "description": "Query the live runtime position and screen coordinates of AURA on the user's desktop monitor (e.g. top-left, top-right, center, bottom-right).",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "clear_session_context",
+                "description": "Forget or clear the runtime session actions and transient history for the current session.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "search_vectordb_memory",
+                "description": "Search long-term ChromaDB vector memory for user facts, past conversation history, user's name, user preferences, or saved context.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "query": {
+                            "type": "STRING",
+                            "description": "Search keywords or question to retrieve from memory"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "open_folder_or_app",
+                "description": "Open a folder, the Desktop in File Explorer, or an application like Notepad or Calculator.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "target": {
+                            "type": "STRING",
+                            "description": "'desktop', 'notepad', 'calc', or a specific folder/file path"
+                        }
+                    },
+                    "required": ["target"]
+                }
+            },
+            {
+                "name": "minimize_window",
+                "description": "Minimize the AURA companion window.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "restore_window",
+                "description": "Restore or unminimize the AURA companion window.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "change_ui_color",
+                "description": "Change the color theme of the glowing AURA orb UI.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "color": {
+                            "type": "STRING",
+                            "description": "Color name: 'red', 'blue', 'purple', 'violet', 'green', 'gold', 'yellow', 'pink', 'cyan', 'orange', 'white'"
+                        }
+                    },
+                    "required": ["color"]
+                }
+            },
+            {
+                "name": "move_desktop_position",
+                "description": "Move the AURA desktop companion to a screen position or start/stop roaming.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "position": {
+                            "type": "STRING",
+                            "description": "'top-right', 'bottom-right', 'top-left', 'bottom-left', 'center', 'roam', 'stop'"
+                        }
+                    },
+                    "required": ["position"]
+                }
+            }
+        ]
+    }])
+}
+
 fn load_env_file() {
     let candidates = [
         std::path::PathBuf::from(".env"),
@@ -218,6 +385,24 @@ impl LlmEngine {
         }
 
         result
+    }
+
+    /// Tool-augmented generation function supporting Gemini function declarations
+    pub async fn generate_with_tools(
+        &self,
+        prompt: &str,
+        system_context: &str,
+        vision_image_base64: Option<&str>,
+    ) -> Result<LlmOutput, String> {
+        match &self.config.active_model {
+            ModelChoice::Gemini20Flash | ModelChoice::Gemini15Pro => {
+                self.call_gemini_tools("gemini-2.0-flash", prompt, system_context, vision_image_base64).await
+            }
+            _ => {
+                let text = self.generate(prompt, system_context, vision_image_base64).await?;
+                Ok(LlmOutput::Text(text))
+            }
+        }
     }
 
     /// 1. Call Local Ollama (qwen2.5:1.5b)
@@ -501,5 +686,253 @@ impl LlmEngine {
 
         crate::logger::log("GEMINI", "ERROR", &format!("All models failed. Last error: {}", last_error));
         Err(format!("All Gemini model endpoints failed. Last error: {}", last_error))
+    }
+
+    /// 5. Call Google Gemini with Tool Declarations
+    async fn call_gemini_tools(
+        &self,
+        requested_model: &str,
+        prompt: &str,
+        system_context: &str,
+        vision_image_base64: Option<&str>,
+    ) -> Result<LlmOutput, String> {
+        static GOOGLE_DISPATCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let _dispatch_lock = GOOGLE_DISPATCH_LOCK.lock().await;
+
+        let api_key = match &self.config.gemini_key {
+            Some(key) if !key.trim().is_empty() => key.clone(),
+            _ => env::var("GEMINI_API_KEY").unwrap_or_default(),
+        };
+
+        if api_key.trim().is_empty() {
+            return Err("GEMINI_API_KEY is not set. Please add it to your .env file.".to_string());
+        }
+
+        let models_to_try: Vec<&str> = match requested_model {
+            "gemini-2.0-flash" | "gemini-flash" | "gemini-3.5-flash" => {
+                vec!["gemini-3.5-flash-lite"]
+            }
+            "gemini-1.5-pro" | "gemini-pro" => {
+                vec!["gemini-3.5-flash-lite"]
+            }
+            other => {
+                vec![other, "gemini-3.5-flash-lite"]
+            }
+        };
+
+        let mut parts = Vec::new();
+        if let Some(img_b64) = vision_image_base64 {
+            parts.push(json!({
+                "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": img_b64
+                }
+            }));
+        }
+
+        let combined_prompt = if system_context.is_empty() {
+            prompt.to_string()
+        } else {
+            format!("{}\n\nUser: {}", system_context, prompt)
+        };
+        parts.push(json!({ "text": combined_prompt }));
+
+        let req_body = json!({
+            "contents": [{ "parts": parts }],
+            "tools": get_gemini_tools(),
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 300,
+                "topP": 0.9
+            }
+        });
+
+        let mut last_error = String::new();
+
+        for model in models_to_try {
+            let url = format!(
+                "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+                model, api_key
+            );
+
+            crate::logger::log("GEMINI", "INFO", &format!("Dispatching query with tools to Google Cloud ({})", model));
+
+            let res = match self.client.post(&url)
+                .header("Content-Type", "application/json")
+                .json(&req_body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("Network error connecting to {}: {}", model, e);
+                    crate::logger::log("GEMINI", "WARN", &last_error);
+                    continue;
+                }
+            };
+
+            let status = res.status();
+            if !status.is_success() {
+                let err_body = res.text().await.unwrap_or_default();
+                last_error = format!("Gemini ({}) HTTP {}: {}", model, status, err_body);
+                crate::logger::log("GEMINI", "WARN", &format!("Model {} returned HTTP {}. Trying next fallback...", model, status));
+                continue;
+            }
+
+            let body: Value = match res.json().await {
+                Ok(b) => b,
+                Err(e) => {
+                    last_error = format!("JSON parse error from {}: {}", model, e);
+                    crate::logger::log("GEMINI", "ERROR", &last_error);
+                    continue;
+                }
+            };
+
+            if let Some(parts_arr) = body["candidates"][0]["content"]["parts"].as_array() {
+                let mut tool_calls = Vec::new();
+                for p in parts_arr {
+                    if let Some(fc) = p.get("functionCall") {
+                        let name = fc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let args = fc.get("args").cloned().unwrap_or(json!({}));
+                        tool_calls.push(ToolCall { name, args });
+                    }
+                }
+
+                if !tool_calls.is_empty() {
+                    crate::logger::log("GEMINI", "SUCCESS", &format!("Model invoked {} tools in parallel", tool_calls.len()));
+                    return Ok(LlmOutput::ToolCalls {
+                        calls: tool_calls,
+                        raw_parts: parts_arr.clone(),
+                        combined_prompt,
+                    });
+                }
+
+                let mut reply = String::new();
+                for p in parts_arr {
+                    if let Some(txt) = p["text"].as_str() {
+                        reply.push_str(txt);
+                    }
+                }
+
+                if !reply.trim().is_empty() {
+                    crate::logger::log("GEMINI", "SUCCESS", &format!("Response received from {} ({} chars)", model, reply.len()));
+                    return Ok(LlmOutput::Text(reply));
+                }
+            }
+        }
+
+        crate::logger::log("GEMINI", "ERROR", &format!("All models failed with tools. Last error: {}", last_error));
+        Err(format!("All Gemini model endpoints failed with tools. Last error: {}", last_error))
+    }
+
+    /// 6. Send Tool Execution Responses back to Gemini for final natural speech synthesis
+    pub async fn send_tool_results_to_gemini(
+        &self,
+        combined_prompt: &str,
+        raw_model_parts: Vec<Value>,
+        tool_responses: Vec<(String, Value)>,
+    ) -> Result<String, String> {
+        let api_key = match &self.config.gemini_key {
+            Some(key) if !key.trim().is_empty() => key.clone(),
+            _ => env::var("GEMINI_API_KEY").unwrap_or_default(),
+        };
+
+        if api_key.trim().is_empty() {
+            return Err("GEMINI_API_KEY is not set. Please add it to your .env file.".to_string());
+        }
+
+        let mut function_parts = Vec::new();
+        for (name, response) in tool_responses {
+            function_parts.push(json!({
+                "functionResponse": {
+                    "name": name,
+                    "response": {
+                        "output": response
+                    }
+                }
+            }));
+        }
+
+        let contents = json!([
+            {
+                "role": "user",
+                "parts": [{ "text": combined_prompt }]
+            },
+            {
+                "role": "model",
+                "parts": raw_model_parts
+            },
+            {
+                "role": "function",
+                "parts": function_parts
+            }
+        ]);
+
+        let req_body = json!({
+            "contents": contents,
+            "tools": get_gemini_tools(),
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 256,
+                "topP": 0.9
+            }
+        });
+
+        static GOOGLE_DISPATCH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let _dispatch_lock = GOOGLE_DISPATCH_LOCK.lock().await;
+
+        let models_to_try = vec!["gemini-3.5-flash-lite"];
+        let mut last_error = String::new();
+
+        for model in models_to_try {
+            let url = format!(
+                "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+                model, api_key
+            );
+
+            crate::logger::log("GEMINI", "INFO", &format!("Synthesizing final speech from tool results ({})", model));
+
+            let res = match self.client.post(&url)
+                .header("Content-Type", "application/json")
+                .json(&req_body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("Network error: {}", e);
+                    continue;
+                }
+            };
+
+            if !res.status().is_success() {
+                last_error = res.text().await.unwrap_or_default();
+                continue;
+            }
+
+            let body: Value = match res.json().await {
+                Ok(b) => b,
+                Err(e) => {
+                    last_error = format!("JSON parse error: {}", e);
+                    continue;
+                }
+            };
+
+            let mut reply = String::new();
+            if let Some(parts_arr) = body["candidates"][0]["content"]["parts"].as_array() {
+                for p in parts_arr {
+                    if let Some(txt) = p["text"].as_str() {
+                        reply.push_str(txt);
+                    }
+                }
+            }
+
+            if !reply.trim().is_empty() {
+                crate::logger::log("GEMINI", "SUCCESS", &format!("Final speech synthesized from {} ({} chars)", model, reply.len()));
+                return Ok(reply);
+            }
+        }
+
+        Err(format!("Failed to get tool response from Gemini. Last error: {}", last_error))
     }
 }

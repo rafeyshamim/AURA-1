@@ -30,17 +30,25 @@
         <div class="specular-highlight secondary-glint" data-tauri-drag-region></div>
         <div class="sub-rim-glint" data-tauri-drag-region></div>
 
-        <!-- The Glowing Squinting Chevrons (">" and "<") Center Eyes -->
-        <div class="squint-eyes" id="squintEyes" data-tauri-drag-region>
-          <div class="eye left-eye" data-tauri-drag-region>
-            <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="12,10 26,20 12,30" />
-            </svg>
+        <!-- The Glowing Digital Face: Eyes + Animated Speaking Mouth -->
+        <div class="orb-face" id="orbFace" data-tauri-drag-region>
+          <!-- Squinting Chevrons (">" and "<") Center Eyes -->
+          <div class="squint-eyes" id="squintEyes" data-tauri-drag-region>
+            <div class="eye left-eye" data-tauri-drag-region>
+              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="12,10 26,20 12,30" />
+              </svg>
+            </div>
+            <div class="eye right-eye" data-tauri-drag-region>
+              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="28,10 14,20 28,30" />
+              </svg>
+            </div>
           </div>
-          <div class="eye right-eye" data-tauri-drag-region>
-            <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="28,10 14,20 28,30" />
-            </svg>
+
+          <!-- Animated Talking Mouth (simulates real agent speaking) -->
+          <div class="agent-mouth" id="agentMouth" data-tauri-drag-region>
+            <div class="mouth-shape" data-tauri-drag-region></div>
           </div>
         </div>
 
