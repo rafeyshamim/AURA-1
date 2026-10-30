@@ -1,0 +1,3 @@
+## 2024-10-30 - Dynamic Speech Accessibility
+**Learning:** In desktop widgets with dynamic subtitle pills (like AURA's speech bubble), visual updates need to be announced to screen readers. Adding `aria-live="polite"`, `aria-atomic="true"`, and `role="status"` ensures these text updates are read out smoothly without interrupting the user unnecessarily. Decorative visual elements (like the orb's eyes) should have `aria-hidden="true"`.
+**Action:** Always add `aria-live` and `aria-atomic` to elements where content changes dynamically, such as subtitles, notifications, or real-time agent responses.
