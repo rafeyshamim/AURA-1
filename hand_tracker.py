@@ -7,6 +7,7 @@ import threading
 from collections import deque
 import cv2
 import numpy as np
+import math
 
 def emit(data):
     """Emit JSON payload to Rust backend via stdout."""
@@ -168,7 +169,7 @@ def stdin_listener():
             emit({"type": "log", "level": "WARN", "message": f"Stdin listener error: {e}"})
 
 def dist(p1, p2):
-    return np.hypot(p1.x - p2.x, p1.y - p2.y)
+    return math.hypot(p1.x - p2.x, p1.y - p2.y)
 
 def main():
     global is_running, is_tracking, cap, latest_frame
@@ -353,8 +354,8 @@ def main():
                     clamped_x = max(0.0, min(1.0, clamped_x))
                     clamped_y = max(0.0, min(1.0, clamped_y))
 
-                    displacement = np.hypot(clamped_x - smooth_x, clamped_y - smooth_y)
-                    alpha = float(np.clip(0.16 + displacement * 1.5, 0.16, 0.44))
+                    displacement = math.hypot(clamped_x - smooth_x, clamped_y - smooth_y)
+                    alpha = float(max(0.16, min(0.44, 0.16 + displacement * 1.5)))
 
                     smooth_x = alpha * clamped_x + (1.0 - alpha) * smooth_x
                     smooth_y = alpha * clamped_y + (1.0 - alpha) * smooth_y
