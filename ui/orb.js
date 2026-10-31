@@ -241,14 +241,16 @@ function setOrbState(state, text = '', badge = '') {
     if (state === 'idle' || state === 'listening') {
       fadeTimer = setTimeout(() => {
         speechPill.classList.remove('visible');
+        speechText.textContent = '';
       }, 2000);
     }
   }
 
   // When speaking completes or returns to listening, fade away after 2.5 seconds
-  if (state === 'listening' && (!text || text === 'Listening...')) {
+  if (state === 'listening' && text === 'Listening...') {
     fadeTimer = setTimeout(() => {
       speechPill.classList.remove('visible');
+      speechText.textContent = '';
     }, 2500);
   }
 }
