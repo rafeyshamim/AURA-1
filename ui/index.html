@@ -35,12 +35,12 @@
           <!-- Squinting Chevrons (">" and "<") Center Eyes -->
           <div class="squint-eyes" id="squintEyes" data-tauri-drag-region>
             <div class="eye left-eye" data-tauri-drag-region>
-              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="12,10 26,20 12,30" />
               </svg>
             </div>
             <div class="eye right-eye" data-tauri-drag-region>
-              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 40 40" class="chevron-svg" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="28,10 14,20 28,30" />
               </svg>
             </div>
@@ -58,9 +58,9 @@
     </div>
 
     <!-- Live Floating Subtitle Pill (Hidden by default, smoothly shows on speech/interaction) -->
-    <div class="speech-pill" id="speechPill" data-tauri-drag-region>
+    <div class="speech-pill" id="speechPill" data-tauri-drag-region role="status">
       <div class="status-indicator" id="statusDot"></div>
-      <div class="speech-content" id="speechContent" data-tauri-drag-region>
+      <div class="speech-content" id="speechContent" data-tauri-drag-region aria-live="polite" aria-atomic="true">
         <span class="speech-badge" id="speechBadge">AURA-1</span>
         <span class="speech-text" id="speechText"></span>
       </div>
