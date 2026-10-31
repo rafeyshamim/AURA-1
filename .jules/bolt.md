@@ -1,3 +1,7 @@
 ## 2024-05-20 - Scalar Math Optimization
 **Learning:** Using `numpy` functions (`np.hypot`, `np.clip`) for scalar operations is an anti-pattern in this codebase's Python modules (like the high-frequency 30 FPS `hand_tracker.py`). Python's built-in `math.hypot` and `min`/`max` functions are approximately 10x faster for scalars.
 **Action:** Use `math.hypot` instead of `np.hypot` and built-in `min`/`max` instead of `np.clip` when dealing with single scalar values in performance-critical Python paths.
+
+## 2023-11-21 - Optimize Rust Log Buffer with VecDeque (O(N) -> O(1))
+**Learning:** Found an inefficient custom logger buffer implementation where `buf.remove(0)` was used on a `Vec<LogEntry>` up to 500 items deep, imposing O(N) overhead on high-frequency logs like webcam tracker reports.
+**Action:** Replaced `Vec` with `std::collections::VecDeque` to achieve O(1) buffer rotation, but remembered to convert back to `Vec` upon extraction to maintain Tauri's command signature compatibility. Also cached `Local::now()` for O(1) time query.
