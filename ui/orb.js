@@ -272,9 +272,9 @@ if (orbContainer) {
   });
 }
 
-// Click on Orb gives playful squint and smile bounce
+// Click or Keyboard on Orb gives playful squint and smile bounce
 if (squintingOrb) {
-  squintingOrb.addEventListener('click', () => {
+  const triggerSmileBounce = () => {
     squintingOrb.style.transform = 'scale(0.9)';
     if (squintEyes) squintEyes.style.transform = 'scaleX(1.3) scaleY(0.4)';
     const mouthShape = agentMouth ? agentMouth.querySelector('.mouth-shape') : null;
@@ -284,6 +284,15 @@ if (squintingOrb) {
       if (squintEyes) squintEyes.style.transform = '';
       if (mouthShape) mouthShape.style.transform = '';
     }, 220);
+  };
+
+  squintingOrb.addEventListener('click', triggerSmileBounce);
+
+  squintingOrb.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      triggerSmileBounce();
+    }
   });
 }
 

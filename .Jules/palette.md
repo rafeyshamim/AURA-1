@@ -1,3 +1,5 @@
-## 2024-10-30 - Dynamic Speech Accessibility
-**Learning:** In desktop widgets with dynamic subtitle pills (like AURA's speech bubble), visual updates need to be announced to screen readers. Adding `aria-live="polite"`, `aria-atomic="true"`, and `role="status"` ensures these text updates are read out smoothly without interrupting the user unnecessarily. Decorative visual elements (like the orb's eyes) should have `aria-hidden="true"`.
-**Action:** Always add `aria-live` and `aria-atomic` to elements where content changes dynamically, such as subtitles, notifications, or real-time agent responses.
+
+## 2024-05-24 - Accessible Interactive Components
+**Learning:** Custom interactive UI elements, like the 3D glowing orb, often lack native accessibility out of the box. Adding `role="button"`, `tabindex="0"`, `aria-label`, along with keyboard event listeners (`Enter` / `Space`) and `:focus-visible` styling is essential. Similarly, dynamic text updates like the AURA-1 speech pill need `aria-live` regions to be announced properly to screen reader users without manual focus shifts.
+**Action:** When implementing new custom interactive elements, always ensure they are fully navigable via keyboard, have a clear visual focus state, and provide auditory feedback for state changes through appropriate ARIA attributes.
+
