@@ -1,5 +1,6 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -14,11 +15,11 @@ pub struct LogEntry {
     pub message: String,
 }
 
-static LOG_BUFFER: OnceLock<Mutex<Vec<LogEntry>>> = OnceLock::new();
+static LOG_BUFFER: OnceLock<Mutex<VecDeque<LogEntry>>> = OnceLock::new();
 static APP_HANDLE: OnceLock<Mutex<Option<AppHandle>>> = OnceLock::new();
 
-fn get_buffer() -> &'static Mutex<Vec<LogEntry>> {
-    LOG_BUFFER.get_or_init(|| Mutex::new(Vec::new()))
+fn get_buffer() -> &'static Mutex<VecDeque<LogEntry>> {
+    LOG_BUFFER.get_or_init(|| Mutex::new(VecDeque::new()))
 }
 
 fn get_app_handle() -> &'static Mutex<Option<AppHandle>> {
@@ -35,8 +36,10 @@ pub fn init_logger(app_handle: Option<AppHandle>) {
 }
 
 pub fn log(category: &str, level: &str, message: &str) {
-    let now = Local::now().format("%H:%M:%S").to_string();
-    let file_now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    // ⚡ Bolt: Cache Local::now() to prevent duplicate system time queries
+    let current_time = Local::now();
+    let now = current_time.format("%H:%M:%S").to_string();
+    let file_now = current_time.format("%Y-%m-%d %H:%M:%S").to_string();
     let entry = LogEntry {
         timestamp: now.clone(),
         category: category.to_string(),
@@ -49,9 +52,10 @@ pub fn log(category: &str, level: &str, message: &str) {
 
     // Save to in-memory buffer (up to 500 entries)
     if let Ok(mut buf) = get_buffer().lock() {
-        buf.push(entry.clone());
+        // ⚡ Bolt: Using VecDeque push_back and pop_front for O(1) buffer rotation instead of O(N) Vec remove(0)
+        buf.push_back(entry.clone());
         if buf.len() > 500 {
-            buf.remove(0);
+            buf.pop_front();
         }
     }
 
@@ -69,13 +73,18 @@ pub fn log(category: &str, level: &str, message: &str) {
     let _ = create_dir_all(&log_dir);
     let log_file = log_dir.join("aura.log");
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_file) {
-        let _ = writeln!(file, "[{}] [{}] [{}] {}", file_now, category, level, message);
+        let _ = writeln!(
+            file,
+            "[{}] [{}] [{}] {}",
+            file_now, category, level, message
+        );
     }
 }
 
 pub fn get_recent_logs() -> Vec<LogEntry> {
     if let Ok(buf) = get_buffer().lock() {
-        buf.clone()
+        // ⚡ Bolt: Convert VecDeque back to Vec to maintain the Tauri command return signature
+        buf.iter().cloned().collect()
     } else {
         Vec::new()
     }
