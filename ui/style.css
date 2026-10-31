@@ -114,6 +114,11 @@ html, body {
   transform: scale(1.06);
 }
 
+.squinting-orb:focus-visible {
+  outline: 2px solid var(--orb-rim-primary);
+  outline-offset: 4px;
+}
+
 /* Base vibrant sphere backdrop with 3D spherical shading */
 .orb-backdrop {
   position: absolute;

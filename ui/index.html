@@ -21,7 +21,7 @@
       <div class="aura-ring ring-inner" id="ringInner" data-tauri-drag-region></div>
 
       <!-- The Translucent Bubble Orb with Squinting Eyes -->
-      <div class="squinting-orb" id="squintingOrb" data-state="listening" data-tauri-drag-region title="AURA-1: Always Listening">
+      <div class="squinting-orb" id="squintingOrb" data-state="listening" data-tauri-drag-region title="AURA-1: Always Listening" role="button" tabindex="0" aria-label="Interact with AURA-1 Orb">
         
         <!-- Bubble Light Gradients & Sheen (matches reference image) -->
         <div class="orb-backdrop" data-tauri-drag-region></div>
@@ -58,7 +58,7 @@
     </div>
 
     <!-- Live Floating Subtitle Pill (Hidden by default, smoothly shows on speech/interaction) -->
-    <div class="speech-pill" id="speechPill" data-tauri-drag-region>
+    <div class="speech-pill" id="speechPill" data-tauri-drag-region aria-live="polite" aria-atomic="true">
       <div class="status-indicator" id="statusDot"></div>
       <div class="speech-content" id="speechContent" data-tauri-drag-region>
         <span class="speech-badge" id="speechBadge">AURA-1</span>
