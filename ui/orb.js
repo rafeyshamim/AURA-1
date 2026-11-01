@@ -207,6 +207,17 @@ function setOrbState(state, text = '', badge = '') {
 
   squintingOrb.dataset.state = state;
 
+  // Update dynamic ARIA attributes
+  const labelText = `AURA-1: ${state.charAt(0).toUpperCase() + state.slice(1)}`;
+  squintingOrb.setAttribute('aria-label', `Interact with ${labelText}`);
+  squintingOrb.title = labelText;
+
+  if (state === 'thinking') {
+    squintingOrb.setAttribute('aria-busy', 'true');
+  } else {
+    squintingOrb.removeAttribute('aria-busy');
+  }
+
   if (fadeTimer) {
     clearTimeout(fadeTimer);
     fadeTimer = null;
