@@ -206,6 +206,7 @@ function setOrbState(state, text = '', badge = '') {
   if (!squintingOrb || !speechPill) return;
 
   squintingOrb.dataset.state = state;
+  squintingOrb.setAttribute('aria-label', `AURA-1 state: ${state}`);
 
   if (fadeTimer) {
     clearTimeout(fadeTimer);
