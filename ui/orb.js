@@ -212,24 +212,38 @@ function setOrbState(state, text = '', badge = '') {
     fadeTimer = null;
   }
 
-  // Handle Badge label
+  // Handle Badge label and Orb Accessibility
+  let orbLabel = 'Interact with AURA-1 Orb';
   if (badge) {
     speechBadge.textContent = badge;
   } else {
     switch (state) {
       case 'listening':
         speechBadge.textContent = 'LISTENING';
+        orbLabel = 'AURA-1: Always Listening';
         break;
       case 'thinking':
         speechBadge.textContent = 'PROCESSING';
+        orbLabel = 'AURA-1: Processing';
         break;
       case 'speaking':
         speechBadge.textContent = 'AURA-1';
+        orbLabel = 'AURA-1: Speaking';
         break;
       default:
         speechBadge.textContent = 'AURA-1';
+        orbLabel = 'Interact with AURA-1 Orb';
         break;
     }
+  }
+
+  // Dynamically update the orb's accessible name and tooltip based on state
+  if (!badge) {
+      squintingOrb.title = orbLabel;
+      squintingOrb.setAttribute('aria-label', orbLabel);
+  } else {
+      squintingOrb.title = `AURA-1: ${badge}`;
+      squintingOrb.setAttribute('aria-label', `AURA-1: ${badge}`);
   }
 
   // Handle Text and Visibility
