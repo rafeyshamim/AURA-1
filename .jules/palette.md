@@ -1,0 +1,3 @@
+## 2024-03-24 - Prefers Reduced Motion in Highly Animated UIs
+**Learning:** The AURA-1 desktop agent interface relies heavily on continuous CSS animations (infinite pulsing, spinning rings, and floating orbs) to convey state and personality. While visually appealing, these unceasing animations can trigger vestibular disorders for some users. Implementing `prefers-reduced-motion: reduce` for these classes is a critical accessibility requirement, not just a nice-to-have.
+**Action:** When working on heavily animated or "breathing" UI elements, always verify that a `prefers-reduced-motion` media query is included to either pause or minimize infinite animations for affected users.
