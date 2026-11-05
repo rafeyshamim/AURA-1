@@ -6,6 +6,7 @@ import queue
 import threading
 import re
 import math
+from collections import deque
 import numpy as np
 import sounddevice as sd
 
@@ -291,7 +292,7 @@ def main():
     silence_blocks_needed = int((SILENCE_DURATION_SEC * SAMPLE_RATE) / BLOCK_SIZE)
     min_speech_blocks = int((MIN_SPEECH_DURATION_SEC * SAMPLE_RATE) / BLOCK_SIZE)
 
-    pre_buffer = []
+    pre_buffer = deque(maxlen=pre_buffer_size)
     speech_frames = []
     in_speech = False
     silent_blocks_count = 0
@@ -334,7 +335,7 @@ def main():
                         in_speech = False
                         if len(speech_frames) >= min_speech_blocks:
                             emit({"type": "state", "state": "thinking", "text": "Processing..."})
-                            full_audio = np.concatenate(speech_frames).astype(np.float32)
+                            full_audio = np.concatenate(speech_frames)
                             try:
                                 segments, _ = whisper_model.transcribe(
                                     full_audio,
@@ -380,8 +381,6 @@ def main():
                 else:
                     # Update rolling pre-buffer
                     pre_buffer.append(chunk)
-                    if len(pre_buffer) > pre_buffer_size:
-                        pre_buffer.pop(0)
 
 if __name__ == "__main__":
     main()

@@ -52,8 +52,8 @@ impl McpManager {
             return Ok(0);
         }
 
-        let content = fs::read_to_string(path)
-            .map_err(|e| format!("Could not read MCP config: {}", e))?;
+        let content =
+            fs::read_to_string(path).map_err(|e| format!("Could not read MCP config: {}", e))?;
 
         let parsed: McpConfigFile = serde_json::from_str(&content)
             .map_err(|e| format!("Invalid MCP config JSON: {}", e))?;
@@ -87,7 +87,9 @@ impl McpManager {
         // Builtin Write Tool (Guarded)
         self.registered_tools.push(McpToolDefinition {
             name: "fs_write_file".to_string(),
-            description: "Write content to a file on the local filesystem (Requires User Authorization)".to_string(),
+            description:
+                "Write content to a file on the local filesystem (Requires User Authorization)"
+                    .to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {

@@ -9,3 +9,11 @@
 ## 2025-02-23 - RMS Calculation Optimization with NumPy Arrays
 **Learning:** Found an inefficient root-mean-square calculation `np.sqrt(np.mean(chunk**2))` inside a high-frequency audio stream loop (64ms blocks) in `speech_engine.py`. This approach creates unnecessary intermediate arrays in memory.
 **Action:** Replaced with `math.sqrt(np.dot(chunk, chunk) / chunk.size)` which uses highly optimized C routines and avoids creating large intermediate arrays, running ~6-7x faster on numpy arrays.
+
+## 2025-02-24 - Pre-Buffer O(N) Array Popping
+**Learning:** Found a list used as a FIFO queue (`pre_buffer = []`) with `pre_buffer.pop(0)` in the `speech_engine.py` high-frequency audio loop. Popping the 0th element in a list creates an O(N) memory shift every single block (64ms).
+**Action:** Replaced the list with a `collections.deque(maxlen=pre_buffer_size)`. Deque automatically pushes out old items when full, making appending and dropping O(1) without requiring explicit length checks or popping.
+
+## 2025-02-24 - Redundant Array Typing
+**Learning:** `np.concatenate(speech_frames).astype(np.float32)` was being called, but `sd.InputStream` already outputs `float32` typed arrays. The `astype(np.float32)` operation was redundantly making a full copy of the audio array.
+**Action:** Remove redundant `astype` conversions when concatenating NumPy arrays that are already of the desired type to save memory allocations and CPU time.
