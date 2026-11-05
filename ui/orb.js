@@ -208,7 +208,7 @@ function setOrbState(state, text = '', badge = '') {
   squintingOrb.dataset.state = state;
 
   // Update dynamic ARIA attributes
-  const labelText = `AURA-1: ${state.charAt(0).toUpperCase() + state.slice(1)}`;
+  const labelText = `AURA-1: ${state.charAt(0).toUpperCase() + state.slice(1)} (Press Enter to interact)`;
   squintingOrb.setAttribute('aria-label', `Interact with ${labelText}`);
   squintingOrb.title = labelText;
 
