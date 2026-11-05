@@ -1,3 +1,4 @@
+use crate::orchestrator::AgentOrchestrator;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -5,7 +6,6 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as TokioMutex;
-use crate::orchestrator::AgentOrchestrator;
 
 pub struct SpeechProcess {
     stdin: Arc<StdMutex<Option<ChildStdin>>>,
@@ -14,7 +14,11 @@ pub struct SpeechProcess {
 
 impl SpeechProcess {
     pub fn spawn(app: AppHandle, orchestrator: Arc<TokioMutex<AgentOrchestrator>>) -> Arc<Self> {
-        crate::logger::log("SPEECH", "INFO", "Spawning AURA offline speech engine sidecar...");
+        crate::logger::log(
+            "SPEECH",
+            "INFO",
+            "Spawning AURA offline speech engine sidecar...",
+        );
 
         // Resolve absolute path to speech_engine.py
         let candidates = [
@@ -34,7 +38,11 @@ impl SpeechProcess {
         }
 
         let script_dir = script_path.parent().unwrap_or(std::path::Path::new("."));
-        crate::logger::log("SPEECH", "INFO", &format!("Speech engine script: {:?}", script_path));
+        crate::logger::log(
+            "SPEECH",
+            "INFO",
+            &format!("Speech engine script: {:?}", script_path),
+        );
 
         let mut cmd = Command::new("python");
         cmd.arg(&script_path);
@@ -52,7 +60,11 @@ impl SpeechProcess {
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
-                crate::logger::log("SPEECH", "ERROR", &format!("Failed to start speech_engine.py: {}", e));
+                crate::logger::log(
+                    "SPEECH",
+                    "ERROR",
+                    &format!("Failed to start speech_engine.py: {}", e),
+                );
                 return Arc::new(Self {
                     stdin: Arc::new(StdMutex::new(None)),
                     child: Arc::new(StdMutex::new(None)),
@@ -102,53 +114,106 @@ impl SpeechProcess {
                         let msg_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("");
                         match msg_type {
                             "log" => {
-                                let cat = val.get("category").and_then(|v| v.as_str()).unwrap_or("SPEECH");
-                                let lvl = val.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
+                                let cat = val
+                                    .get("category")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("SPEECH");
+                                let lvl =
+                                    val.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
                                 let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("");
                                 crate::logger::log(cat, lvl, msg);
                             }
                             "ready" => {
-                                crate::logger::log("SPEECH", "SUCCESS", "Python Speech Engine is ready and active!");
-                                let _ = app_handle.emit("aura-state", serde_json::json!({
-                                    "state": "speaking",
-                                    "text": "AURA-1 online. I am listening."
-                                }));
-                                Self::write_command(&stdin_writer, "speak", "AURA-1 online. I am listening.");
+                                crate::logger::log(
+                                    "SPEECH",
+                                    "SUCCESS",
+                                    "Python Speech Engine is ready and active!",
+                                );
+                                let _ = app_handle.emit(
+                                    "aura-state",
+                                    serde_json::json!({
+                                        "state": "speaking",
+                                        "text": "AURA-1 online. I am listening."
+                                    }),
+                                );
+                                Self::write_command(
+                                    &stdin_writer,
+                                    "speak",
+                                    "AURA-1 online. I am listening.",
+                                );
                             }
                             "state" => {
-                                let state = val.get("state").and_then(|v| v.as_str()).unwrap_or("idle");
+                                let state =
+                                    val.get("state").and_then(|v| v.as_str()).unwrap_or("idle");
                                 let text = val.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                                let _ = app_handle.emit("aura-state", serde_json::json!({
-                                    "state": state,
-                                    "text": text
-                                }));
+                                let _ = app_handle.emit(
+                                    "aura-state",
+                                    serde_json::json!({
+                                        "state": state,
+                                        "text": text
+                                    }),
+                                );
                             }
                             "speech_done" => {
                                 req_seq.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                 is_busy.store(false, std::sync::atomic::Ordering::SeqCst);
-                                let _ = app_handle.emit("aura-state", serde_json::json!({
-                                    "state": "listening",
-                                    "text": ""
-                                }));
+                                let _ = app_handle.emit(
+                                    "aura-state",
+                                    serde_json::json!({
+                                        "state": "listening",
+                                        "text": ""
+                                    }),
+                                );
                             }
                             "transcription" => {
-                                let user_text = val.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let user_text = val
+                                    .get("text")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
                                 if !user_text.is_empty() {
                                     // Prevent overlapping query processing if already working or speaking
-                                    if is_busy.compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_err() {
-                                        crate::logger::log("SPEECH", "WARN", &format!("Dropping overlapping input while busy: '{}'", user_text));
+                                    if is_busy
+                                        .compare_exchange(
+                                            false,
+                                            true,
+                                            std::sync::atomic::Ordering::SeqCst,
+                                            std::sync::atomic::Ordering::SeqCst,
+                                        )
+                                        .is_err()
+                                    {
+                                        crate::logger::log(
+                                            "SPEECH",
+                                            "WARN",
+                                            &format!(
+                                                "Dropping overlapping input while busy: '{}'",
+                                                user_text
+                                            ),
+                                        );
                                         continue;
                                     }
 
-                                    let my_seq = req_seq.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                                    crate::logger::log("SPEECH", "SUCCESS", &format!("Transcribed: '{}'", user_text));
-                                    let _ = app_handle.emit("aura-user-speech", serde_json::json!({
-                                        "text": user_text
-                                    }));
-                                    let _ = app_handle.emit("aura-state", serde_json::json!({
-                                        "state": "thinking",
-                                        "text": format!("\"{}\"", user_text)
-                                    }));
+                                    let my_seq = req_seq
+                                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                                        + 1;
+                                    crate::logger::log(
+                                        "SPEECH",
+                                        "SUCCESS",
+                                        &format!("Transcribed: '{}'", user_text),
+                                    );
+                                    let _ = app_handle.emit(
+                                        "aura-user-speech",
+                                        serde_json::json!({
+                                            "text": user_text
+                                        }),
+                                    );
+                                    let _ = app_handle.emit(
+                                        "aura-state",
+                                        serde_json::json!({
+                                            "state": "thinking",
+                                            "text": format!("\"{}\"", user_text)
+                                        }),
+                                    );
 
                                     let app_h = app_handle.clone();
                                     let orch = orch_arc.clone();
@@ -160,40 +225,64 @@ impl SpeechProcess {
                                     let watchdog_seq = req_seq.clone();
                                     let watchdog_app = app_handle.clone();
                                     tauri::async_runtime::spawn(async move {
-                                        tokio::time::sleep(tokio::time::Duration::from_secs(25)).await;
-                                        if watchdog_seq.load(std::sync::atomic::Ordering::SeqCst) == my_seq {
-                                            if watchdog_busy.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                                        tokio::time::sleep(tokio::time::Duration::from_secs(25))
+                                            .await;
+                                        if watchdog_seq.load(std::sync::atomic::Ordering::SeqCst)
+                                            == my_seq
+                                        {
+                                            if watchdog_busy
+                                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                                            {
                                                 crate::logger::log("SPEECH", "WARN", "Speech watchdog: auto-recovered agent from stuck busy state.");
-                                                let _ = watchdog_app.emit("aura-state", serde_json::json!({
-                                                    "state": "listening",
-                                                    "text": ""
-                                                }));
+                                                let _ = watchdog_app.emit(
+                                                    "aura-state",
+                                                    serde_json::json!({
+                                                        "state": "listening",
+                                                        "text": ""
+                                                    }),
+                                                );
                                             }
                                         }
                                     });
 
                                     tauri::async_runtime::spawn(async move {
                                         let mut orch_guard = orch.lock().await;
-                                        let res = orch_guard.process_user_message(&user_text, false).await;
-                                        crate::logger::log("LLM", "SUCCESS", &format!("Reply: '{}'", res.reply));
+                                        let res = orch_guard
+                                            .process_user_message(&user_text, false)
+                                            .await;
+                                        crate::logger::log(
+                                            "LLM",
+                                            "SUCCESS",
+                                            &format!("Reply: '{}'", res.reply),
+                                        );
 
                                         // Color and PC tools are executed atomically and concurrently inside orchestrator
                                         if let Some(ref color) = res.color_action {
-                                            let _ = app_h.emit("aura-color", serde_json::json!({
-                                                "color": color
-                                            }));
+                                            let _ = app_h.emit(
+                                                "aura-color",
+                                                serde_json::json!({
+                                                    "color": color
+                                                }),
+                                            );
                                         }
 
-                                        let _ = app_h.emit("aura-agent-speech", serde_json::json!({
-                                            "text": res.reply
-                                        }));
+                                        let _ = app_h.emit(
+                                            "aura-agent-speech",
+                                            serde_json::json!({
+                                                "text": res.reply
+                                            }),
+                                        );
 
                                         if res.reply.trim().is_empty() {
-                                            busy_flag.store(false, std::sync::atomic::Ordering::SeqCst);
-                                            let _ = app_h.emit("aura-state", serde_json::json!({
-                                                "state": "listening",
-                                                "text": ""
-                                            }));
+                                            busy_flag
+                                                .store(false, std::sync::atomic::Ordering::SeqCst);
+                                            let _ = app_h.emit(
+                                                "aura-state",
+                                                serde_json::json!({
+                                                    "state": "listening",
+                                                    "text": ""
+                                                }),
+                                            );
                                         } else {
                                             Self::write_command(&writer, "speak", &res.reply);
                                         }

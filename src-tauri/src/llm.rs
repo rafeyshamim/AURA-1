@@ -43,10 +43,14 @@ impl ModelChoice {
 
     pub fn display_name(&self) -> String {
         match self {
-            ModelChoice::Gemini20Flash => "Google Gemini 2.0 Flash [Default - Fast Cloud]".to_string(),
+            ModelChoice::Gemini20Flash => {
+                "Google Gemini 2.0 Flash [Default - Fast Cloud]".to_string()
+            }
             ModelChoice::Gemini15Pro => "Google Gemini 1.5 Pro [Long Context Cloud]".to_string(),
             ModelChoice::OllamaQwen25 => "Qwen 2.5 (1.5B) [Local Ollama - Offline]".to_string(),
-            ModelChoice::Claude35Sonnet => "Anthropic Claude 3.5 Sonnet [Vision + Computer Use]".to_string(),
+            ModelChoice::Claude35Sonnet => {
+                "Anthropic Claude 3.5 Sonnet [Vision + Computer Use]".to_string()
+            }
             ModelChoice::Gpt4o => "OpenAI GPT-4o [Multimodal Cloud]".to_string(),
             ModelChoice::Custom(s) => format!("Custom Model: {}", s),
         }
@@ -335,8 +339,14 @@ pub struct LlmEngine {
 impl LlmEngine {
     pub fn new(config: Option<LlmConfig>) -> Self {
         let cfg = config.unwrap_or_default();
-        println!("[LLM Engine] Initialized with model: {}", cfg.active_model.display_name());
-        println!("[LLM Engine] Gemini API Key present: {}", cfg.gemini_key.is_some());
+        println!(
+            "[LLM Engine] Initialized with model: {}",
+            cfg.active_model.display_name()
+        );
+        println!(
+            "[LLM Engine] Gemini API Key present: {}",
+            cfg.gemini_key.is_some()
+        );
         Self {
             config: cfg,
             client: reqwest::Client::builder()
@@ -390,7 +400,10 @@ impl LlmEngine {
 
     pub fn set_model(&mut self, model_str: &str) {
         self.config.active_model = ModelChoice::from_str_id(model_str);
-        println!("[LLM Engine] Switched active model to: {}", self.config.active_model.display_name());
+        println!(
+            "[LLM Engine] Switched active model to: {}",
+            self.config.active_model.display_name()
+        );
     }
 
     /// Unified generation function handling both local Ollama and cloud providers
@@ -400,23 +413,41 @@ impl LlmEngine {
         system_context: &str,
         vision_image_base64: Option<&str>,
     ) -> Result<String, String> {
-        println!("[LLM Engine] Generating with model: {:?}", self.config.active_model.to_str_id());
-        
+        println!(
+            "[LLM Engine] Generating with model: {:?}",
+            self.config.active_model.to_str_id()
+        );
+
         let result = match &self.config.active_model {
             ModelChoice::Gemini20Flash => {
-                self.call_gemini("gemini-2.0-flash", prompt, system_context, vision_image_base64).await
+                self.call_gemini(
+                    "gemini-2.0-flash",
+                    prompt,
+                    system_context,
+                    vision_image_base64,
+                )
+                .await
             }
             ModelChoice::Gemini15Pro => {
-                self.call_gemini("gemini-1.5-pro", prompt, system_context, vision_image_base64).await
+                self.call_gemini(
+                    "gemini-1.5-pro",
+                    prompt,
+                    system_context,
+                    vision_image_base64,
+                )
+                .await
             }
             ModelChoice::OllamaQwen25 => {
-                self.call_ollama("qwen2.5:1.5b", prompt, system_context).await
+                self.call_ollama("qwen2.5:1.5b", prompt, system_context)
+                    .await
             }
             ModelChoice::Claude35Sonnet => {
-                self.call_claude(prompt, system_context, vision_image_base64).await
+                self.call_claude(prompt, system_context, vision_image_base64)
+                    .await
             }
             ModelChoice::Gpt4o => {
-                self.call_openai(prompt, system_context, vision_image_base64).await
+                self.call_openai(prompt, system_context, vision_image_base64)
+                    .await
             }
             ModelChoice::Custom(name) => {
                 // Attempt custom local model on Ollama
@@ -441,10 +472,18 @@ impl LlmEngine {
     ) -> Result<LlmOutput, String> {
         match &self.config.active_model {
             ModelChoice::Gemini20Flash | ModelChoice::Gemini15Pro => {
-                self.call_gemini_tools("gemini-2.0-flash", prompt, system_context, vision_image_base64).await
+                self.call_gemini_tools(
+                    "gemini-2.0-flash",
+                    prompt,
+                    system_context,
+                    vision_image_base64,
+                )
+                .await
             }
             _ => {
-                let text = self.generate(prompt, system_context, vision_image_base64).await?;
+                let text = self
+                    .generate(prompt, system_context, vision_image_base64)
+                    .await?;
                 Ok(LlmOutput::Text(text))
             }
         }
@@ -461,7 +500,10 @@ impl LlmEngine {
         let full_prompt = if system_context.is_empty() {
             prompt.to_string()
         } else {
-            format!("System Context:\n{}\n\nUser: {}\nAssistant:", system_context, prompt)
+            format!(
+                "System Context:\n{}\n\nUser: {}\nAssistant:",
+                system_context, prompt
+            )
         };
 
         let req_body = json!({
@@ -470,17 +512,26 @@ impl LlmEngine {
             "stream": false
         });
 
-        let res = self.client.post(&url)
+        let res = self
+            .client
+            .post(&url)
             .json(&req_body)
             .send()
             .await
-            .map_err(|e| format!("Failed to connect to local Ollama at {}: {}", self.config.ollama_url, e))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to connect to local Ollama at {}: {}",
+                    self.config.ollama_url, e
+                )
+            })?;
 
         if !res.status().is_success() {
             return Err(format!("Ollama error status: {}", res.status()));
         }
 
-        let body: Value = res.json().await
+        let body: Value = res
+            .json()
+            .await
             .map_err(|e| format!("Invalid JSON from Ollama: {}", e))?;
 
         let response_text = body["response"].as_str().unwrap_or("").to_string();
@@ -530,7 +581,9 @@ impl LlmEngine {
             ]
         });
 
-        let res = self.client.post("https://api.anthropic.com/v1/messages")
+        let res = self
+            .client
+            .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
@@ -544,10 +597,15 @@ impl LlmEngine {
             return Err(format!("Anthropic API error: {}", err_body));
         }
 
-        let body: Value = res.json().await
+        let body: Value = res
+            .json()
+            .await
             .map_err(|e| format!("Invalid JSON from Anthropic: {}", e))?;
 
-        let reply = body["content"][0]["text"].as_str().unwrap_or("").to_string();
+        let reply = body["content"][0]["text"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
         Ok(reply)
     }
 
@@ -586,7 +644,9 @@ impl LlmEngine {
             ]
         });
 
-        let res = self.client.post("https://api.openai.com/v1/chat/completions")
+        let res = self
+            .client
+            .post("https://api.openai.com/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&req_body)
             .send()
@@ -598,10 +658,15 @@ impl LlmEngine {
             return Err(format!("OpenAI API error: {}", err_body));
         }
 
-        let body: Value = res.json().await
+        let body: Value = res
+            .json()
+            .await
             .map_err(|e| format!("Invalid JSON from OpenAI: {}", e))?;
 
-        let reply = body["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string();
+        let reply = body["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
         Ok(reply)
     }
 
@@ -629,7 +694,11 @@ impl LlmEngine {
         // Determine candidate models in priority order (flash-lite has high limits and ultra-fast latency)
         let models_to_try: Vec<&str> = match requested_model {
             "gemini-2.0-flash" | "gemini-flash" | "gemini-3.5-flash" => {
-                vec!["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"]
+                vec![
+                    "gemini-3.5-flash-lite",
+                    "gemini-3.5-flash",
+                    "gemini-3.6-flash",
+                ]
             }
             "gemini-1.5-pro" | "gemini-pro" => {
                 vec!["gemini-3.5-flash-lite", "gemini-3.5-flash"]
@@ -673,9 +742,15 @@ impl LlmEngine {
                 model, api_key
             );
 
-            crate::logger::log("GEMINI", "INFO", &format!("Dispatching query to Google Cloud ({})", model));
+            crate::logger::log(
+                "GEMINI",
+                "INFO",
+                &format!("Dispatching query to Google Cloud ({})", model),
+            );
 
-            let res = match self.client.post(&url)
+            let res = match self
+                .client
+                .post(&url)
                 .header("Content-Type", "application/json")
                 .json(&req_body)
                 .send()
@@ -693,7 +768,14 @@ impl LlmEngine {
             if !status.is_success() {
                 let err_body = res.text().await.unwrap_or_default();
                 last_error = format!("Gemini ({}) HTTP {}: {}", model, status, err_body);
-                crate::logger::log("GEMINI", "WARN", &format!("Model {} returned HTTP {}. Trying next fallback...", model, status));
+                crate::logger::log(
+                    "GEMINI",
+                    "WARN",
+                    &format!(
+                        "Model {} returned HTTP {}. Trying next fallback...",
+                        model, status
+                    ),
+                );
                 continue;
             }
 
@@ -716,21 +798,42 @@ impl LlmEngine {
             }
 
             if reply.trim().is_empty() {
-                let block_reason = body["candidates"][0]["finishReason"].as_str().unwrap_or("unknown");
+                let block_reason = body["candidates"][0]["finishReason"]
+                    .as_str()
+                    .unwrap_or("unknown");
                 if block_reason == "SAFETY" {
-                    crate::logger::log("GEMINI", "WARN", "Response blocked by Gemini safety filter.");
+                    crate::logger::log(
+                        "GEMINI",
+                        "WARN",
+                        "Response blocked by Gemini safety filter.",
+                    );
                     return Err("Gemini blocked this response due to safety filters.".to_string());
                 }
-                crate::logger::log("GEMINI", "WARN", &format!("Empty text response from {}. Trying next model...", model));
+                crate::logger::log(
+                    "GEMINI",
+                    "WARN",
+                    &format!("Empty text response from {}. Trying next model...", model),
+                );
                 continue;
             }
 
-            crate::logger::log("GEMINI", "SUCCESS", &format!("Response received from {} ({} chars)", model, reply.len()));
+            crate::logger::log(
+                "GEMINI",
+                "SUCCESS",
+                &format!("Response received from {} ({} chars)", model, reply.len()),
+            );
             return Ok(reply);
         }
 
-        crate::logger::log("GEMINI", "ERROR", &format!("All models failed. Last error: {}", last_error));
-        Err(format!("All Gemini model endpoints failed. Last error: {}", last_error))
+        crate::logger::log(
+            "GEMINI",
+            "ERROR",
+            &format!("All models failed. Last error: {}", last_error),
+        );
+        Err(format!(
+            "All Gemini model endpoints failed. Last error: {}",
+            last_error
+        ))
     }
 
     /// 5. Call Google Gemini with Tool Declarations
@@ -800,9 +903,15 @@ impl LlmEngine {
                 model, api_key
             );
 
-            crate::logger::log("GEMINI", "INFO", &format!("Dispatching query with tools to Google Cloud ({})", model));
+            crate::logger::log(
+                "GEMINI",
+                "INFO",
+                &format!("Dispatching query with tools to Google Cloud ({})", model),
+            );
 
-            let res = match self.client.post(&url)
+            let res = match self
+                .client
+                .post(&url)
                 .header("Content-Type", "application/json")
                 .json(&req_body)
                 .send()
@@ -820,7 +929,14 @@ impl LlmEngine {
             if !status.is_success() {
                 let err_body = res.text().await.unwrap_or_default();
                 last_error = format!("Gemini ({}) HTTP {}: {}", model, status, err_body);
-                crate::logger::log("GEMINI", "WARN", &format!("Model {} returned HTTP {}. Trying next fallback...", model, status));
+                crate::logger::log(
+                    "GEMINI",
+                    "WARN",
+                    &format!(
+                        "Model {} returned HTTP {}. Trying next fallback...",
+                        model, status
+                    ),
+                );
                 continue;
             }
 
@@ -837,14 +953,22 @@ impl LlmEngine {
                 let mut tool_calls = Vec::new();
                 for p in parts_arr {
                     if let Some(fc) = p.get("functionCall") {
-                        let name = fc.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let name = fc
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         let args = fc.get("args").cloned().unwrap_or(json!({}));
                         tool_calls.push(ToolCall { name, args });
                     }
                 }
 
                 if !tool_calls.is_empty() {
-                    crate::logger::log("GEMINI", "SUCCESS", &format!("Model invoked {} tools in parallel", tool_calls.len()));
+                    crate::logger::log(
+                        "GEMINI",
+                        "SUCCESS",
+                        &format!("Model invoked {} tools in parallel", tool_calls.len()),
+                    );
                     return Ok(LlmOutput::ToolCalls {
                         calls: tool_calls,
                         raw_parts: parts_arr.clone(),
@@ -860,14 +984,25 @@ impl LlmEngine {
                 }
 
                 if !reply.trim().is_empty() {
-                    crate::logger::log("GEMINI", "SUCCESS", &format!("Response received from {} ({} chars)", model, reply.len()));
+                    crate::logger::log(
+                        "GEMINI",
+                        "SUCCESS",
+                        &format!("Response received from {} ({} chars)", model, reply.len()),
+                    );
                     return Ok(LlmOutput::Text(reply));
                 }
             }
         }
 
-        crate::logger::log("GEMINI", "ERROR", &format!("All models failed with tools. Last error: {}", last_error));
-        Err(format!("All Gemini model endpoints failed with tools. Last error: {}", last_error))
+        crate::logger::log(
+            "GEMINI",
+            "ERROR",
+            &format!("All models failed with tools. Last error: {}", last_error),
+        );
+        Err(format!(
+            "All Gemini model endpoints failed with tools. Last error: {}",
+            last_error
+        ))
     }
 
     /// 6. Send Tool Execution Responses to Gemini for final natural speech synthesis
@@ -934,9 +1069,15 @@ impl LlmEngine {
                 model, api_key
             );
 
-            crate::logger::log("GEMINI", "INFO", &format!("Synthesizing final speech from tool results ({})", model));
+            crate::logger::log(
+                "GEMINI",
+                "INFO",
+                &format!("Synthesizing final speech from tool results ({})", model),
+            );
 
-            let res = match self.client.post(&url)
+            let res = match self
+                .client
+                .post(&url)
                 .header("Content-Type", "application/json")
                 .json(&req_body)
                 .send()
@@ -972,11 +1113,22 @@ impl LlmEngine {
             }
 
             if !reply.trim().is_empty() {
-                crate::logger::log("GEMINI", "SUCCESS", &format!("Final speech synthesized from {} ({} chars)", model, reply.len()));
+                crate::logger::log(
+                    "GEMINI",
+                    "SUCCESS",
+                    &format!(
+                        "Final speech synthesized from {} ({} chars)",
+                        model,
+                        reply.len()
+                    ),
+                );
                 return Ok(reply);
             }
         }
 
-        Err(format!("Failed to get tool response from Gemini. Last error: {}", last_error))
+        Err(format!(
+            "Failed to get tool response from Gemini. Last error: {}",
+            last_error
+        ))
     }
 }
