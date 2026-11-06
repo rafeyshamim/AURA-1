@@ -225,20 +225,20 @@ function setOrbState(state, text = '', badge = '') {
 
   // Handle Badge label
   if (badge) {
-    speechBadge.textContent = badge;
+    speechBadge.textContent = `${badge}:`;
   } else {
     switch (state) {
       case 'listening':
-        speechBadge.textContent = 'LISTENING';
+        speechBadge.textContent = 'LISTENING:';
         break;
       case 'thinking':
-        speechBadge.textContent = 'PROCESSING';
+        speechBadge.textContent = 'PROCESSING:';
         break;
       case 'speaking':
-        speechBadge.textContent = 'AURA-1';
+        speechBadge.textContent = 'AURA-1:';
         break;
       default:
-        speechBadge.textContent = 'AURA-1';
+        speechBadge.textContent = 'AURA-1:';
         break;
     }
   }
