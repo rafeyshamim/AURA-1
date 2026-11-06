@@ -7,3 +7,7 @@
 ## 2024-05-24 - Dynamic States and ARIA
 **Learning:** For highly interactive custom components (like the AURA-1 glowing orb), static ARIA labels are insufficient. As the visual state changes (e.g., from "Listening" to "Processing" to "Speaking"), screen reader users must also receive this context.
 **Action:** When components have distinct functional states that are visually apparent, always bind the `aria-label`, `title`, and state attributes like `aria-busy` directly to the state management logic to ensure parity between the visual and accessible experience.
+
+## 2024-05-24 - Accessible CSS Transitions
+**Learning:** Using `opacity: 0` for visual fade-out animations is not enough for accessibility, as screen readers will still read the "ghost" text hidden from sight.
+**Action:** When fading out interactive elements or live regions (like tooltips, speech pills), always pair `opacity: 0` with `visibility: hidden` (and `visibility: visible` for `opacity: 1`). Transitioning `visibility` ensures the element is properly removed from the accessibility tree when hidden.
