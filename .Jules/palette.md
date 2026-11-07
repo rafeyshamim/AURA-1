@@ -7,3 +7,6 @@
 ## 2024-05-24 - Dynamic States and ARIA
 **Learning:** For highly interactive custom components (like the AURA-1 glowing orb), static ARIA labels are insufficient. As the visual state changes (e.g., from "Listening" to "Processing" to "Speaking"), screen reader users must also receive this context.
 **Action:** When components have distinct functional states that are visually apparent, always bind the `aria-label`, `title`, and state attributes like `aria-busy` directly to the state management logic to ensure parity between the visual and accessible experience.
+## 2026-11-07 - Prevent screen readers from reading ghost text
+**Learning:** When using `opacity: 0` for live regions like the speech pill, screen readers can still read the text. It must be paired with `visibility: hidden` to be fully inaccessible when visually hidden.
+**Action:** Always pair `opacity: 0` with `visibility: hidden` (and transition `visibility`) when fading out interactive elements or live regions.
