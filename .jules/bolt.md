@@ -9,3 +9,7 @@
 ## 2025-02-23 - RMS Calculation Optimization with NumPy Arrays
 **Learning:** Found an inefficient root-mean-square calculation `np.sqrt(np.mean(chunk**2))` inside a high-frequency audio stream loop (64ms blocks) in `speech_engine.py`. This approach creates unnecessary intermediate arrays in memory.
 **Action:** Replaced with `math.sqrt(np.dot(chunk, chunk) / chunk.size)` which uses highly optimized C routines and avoids creating large intermediate arrays, running ~6-7x faster on numpy arrays.
+
+## 2025-02-23 - Optimize Python Audio Buffer with Deque (O(N) -> O(1))
+**Learning:** Found an inefficient rolling pre-buffer implementation where `pre_buffer.pop(0)` was used on a list up to `pre_buffer_size` items deep, imposing O(N) overhead on high-frequency audio streams in `speech_engine.py`.
+**Action:** Replaced `list` with `collections.deque(maxlen=pre_buffer_size)` to achieve O(1) buffer rotation automatically when items are appended.
