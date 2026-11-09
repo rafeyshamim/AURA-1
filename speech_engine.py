@@ -4,6 +4,7 @@ import json
 import time
 import queue
 import threading
+from collections import deque
 import re
 import math
 import numpy as np
@@ -291,7 +292,8 @@ def main():
     silence_blocks_needed = int((SILENCE_DURATION_SEC * SAMPLE_RATE) / BLOCK_SIZE)
     min_speech_blocks = int((MIN_SPEECH_DURATION_SEC * SAMPLE_RATE) / BLOCK_SIZE)
 
-    pre_buffer = []
+    # Optimized: deque provides O(1) sliding window operations, avoiding O(N) list shifts
+    pre_buffer = deque(maxlen=pre_buffer_size)
     speech_frames = []
     in_speech = False
     silent_blocks_count = 0
@@ -380,8 +382,6 @@ def main():
                 else:
                     # Update rolling pre-buffer
                     pre_buffer.append(chunk)
-                    if len(pre_buffer) > pre_buffer_size:
-                        pre_buffer.pop(0)
 
 if __name__ == "__main__":
     main()
