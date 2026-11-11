@@ -95,7 +95,9 @@ impl AgentOrchestrator {
         if self.session_tool_history.is_empty() {
             return String::new();
         }
-        let mut out = String::from("\n[Current Runtime Session Actions (Active Session Memory - Forgotten on restart)]:\n");
+        let mut out = String::from(
+            "\n[Current Runtime Session Actions (Active Session Memory - Forgotten on restart)]:\n",
+        );
         for action in &self.session_tool_history {
             out.push_str(&format!("- {}\n", action.summary));
         }
@@ -109,8 +111,11 @@ impl AgentOrchestrator {
         user_text: &str,
         enable_vision: bool,
     ) -> AgentResponse {
-        println!("[Orchestrator] Processing message: '{}'", &user_text[..user_text.len().min(80)]);
-        
+        println!(
+            "[Orchestrator] Processing message: '{}'",
+            &user_text[..user_text.len().min(80)]
+        );
+
         let now = chrono::Utc::now().timestamp();
         self.conversation_history.push(ChatMessage {
             role: "user".to_string(),
@@ -127,11 +132,22 @@ impl AgentOrchestrator {
                 || lower.contains("granted")
                 || lower.contains("approved")
                 || lower.contains("proceed")
-                || (lower.contains("yes") && (lower.contains("delete") || lower.contains("do it") || lower.contains("go ahead") || lower.contains("sure")))
+                || (lower.contains("yes")
+                    && (lower.contains("delete")
+                        || lower.contains("do it")
+                        || lower.contains("go ahead")
+                        || lower.contains("sure")))
             {
-                crate::logger::log("SECURITY", "SUCCESS", &format!("User granted authorization: {}", action_desc));
+                crate::logger::log(
+                    "SECURITY",
+                    "SUCCESS",
+                    &format!("User granted authorization: {}", action_desc),
+                );
                 self.pending_guarded_action = None;
-                let reply = format!("Permission confirmed. I have authorized and processed your request: '{}'.", action_desc);
+                let reply = format!(
+                    "Permission confirmed. I have authorized and processed your request: '{}'.",
+                    action_desc
+                );
                 self.conversation_history.push(ChatMessage {
                     role: "assistant".to_string(),
                     content: reply.clone(),
@@ -151,14 +167,27 @@ impl AgentOrchestrator {
         }
 
         // Fast-path camera / tracking shutoff
-        if (lower.contains("stop") || lower.contains("turn off") || lower.contains("disable") || lower.contains("close") || lower.contains("shut down") || lower.contains("quit"))
-            && (lower.contains("camera") || lower.contains("webcam") || lower.contains("tracking") || lower.contains("hand tracking") || lower.contains("vision"))
+        if (lower.contains("stop")
+            || lower.contains("turn off")
+            || lower.contains("disable")
+            || lower.contains("close")
+            || lower.contains("shut down")
+            || lower.contains("quit"))
+            && (lower.contains("camera")
+                || lower.contains("webcam")
+                || lower.contains("tracking")
+                || lower.contains("hand tracking")
+                || lower.contains("vision"))
         {
             if let Some(ref tracker) = self.hand_tracker {
                 tracker.stop_tracking();
             }
-            let reply = "Camera and hand tracking deactivated. Webcam hardware has been released.".to_string();
-            self.record_session_action("toggle_hand_tracking", "Deactivated camera and hand tracking.");
+            let reply = "Camera and hand tracking deactivated. Webcam hardware has been released."
+                .to_string();
+            self.record_session_action(
+                "toggle_hand_tracking",
+                "Deactivated camera and hand tracking.",
+            );
             self.conversation_history.push(ChatMessage {
                 role: "assistant".to_string(),
                 content: reply.clone(),
@@ -183,21 +212,25 @@ impl AgentOrchestrator {
             && !lower.contains("outfit")
             && !lower.contains("wear")
             && !lower.contains("look")
-            && (
-                (lower.contains("track") && lower.contains("hand"))
+            && ((lower.contains("track") && lower.contains("hand"))
                 || (lower.contains("follow") && lower.contains("hand"))
                 || lower.contains("track my movement")
                 || lower.contains("start tracking")
                 || lower.contains("enable tracking")
-                || (lower.contains("follow my") && (lower.contains("hand") || lower.contains("finger") || lower.contains("movement")))
-            );
+                || (lower.contains("follow my")
+                    && (lower.contains("hand")
+                        || lower.contains("finger")
+                        || lower.contains("movement"))));
 
         if is_hand_tracking_cmd {
             if let Some(ref tracker) = self.hand_tracker {
                 tracker.start_tracking();
             }
             let reply = "I've turned on vision and hand tracking! Move your hand in front of the camera and I will follow your movement across the desktop screen.".to_string();
-            self.record_session_action("toggle_hand_tracking", "Activated vision & real-time hand tracking.");
+            self.record_session_action(
+                "toggle_hand_tracking",
+                "Activated vision & real-time hand tracking.",
+            );
             self.conversation_history.push(ChatMessage {
                 role: "assistant".to_string(),
                 content: reply.clone(),
@@ -218,30 +251,39 @@ impl AgentOrchestrator {
         // Fast-path direct directional voice navigation ("left", "right", "up", "down", "center")
         let clean_cmd = lower.trim().trim_end_matches(['.', '!', '?']).trim();
         let direct_nav = match clean_cmd {
-            "left" | "go left" | "move left" | "to the left" | "head left" | "shift left" | "dock left" => {
-                Some(("middle-left", "Moving directly to the left side."))
-            }
-            "right" | "go right" | "move right" | "to the right" | "head right" | "shift right" | "dock right" => {
-                Some(("middle-right", "Moving directly to the right side."))
-            }
-            "up" | "go up" | "move up" | "top" | "to the top" | "head up" | "move top" | "top center" => {
-                Some(("top-center", "Moving directly to the top."))
-            }
-            "down" | "go down" | "move down" | "bottom" | "to the bottom" | "head down" | "move bottom" | "bottom center" => {
+            "left" | "go left" | "move left" | "to the left" | "head left" | "shift left"
+            | "dock left" => Some(("middle-left", "Moving directly to the left side.")),
+            "right" | "go right" | "move right" | "to the right" | "head right" | "shift right"
+            | "dock right" => Some(("middle-right", "Moving directly to the right side.")),
+            "up" | "go up" | "move up" | "top" | "to the top" | "head up" | "move top"
+            | "top center" => Some(("top-center", "Moving directly to the top.")),
+            "down" | "go down" | "move down" | "bottom" | "to the bottom" | "head down"
+            | "move bottom" | "bottom center" => {
                 Some(("bottom-center", "Moving directly to the bottom."))
             }
-            "center" | "middle" | "go center" | "move center" | "go to center" | "to the center" => {
-                Some(("center", "Moving directly to the center."))
+            "center" | "middle" | "go center" | "move center" | "go to center"
+            | "to the center" => Some(("center", "Moving directly to the center.")),
+            "top right" | "top-right" | "go top right" => {
+                Some(("top-right", "Moving to the top-right corner."))
             }
-            "top right" | "top-right" | "go top right" => Some(("top-right", "Moving to the top-right corner.")),
-            "top left" | "top-left" | "go top left" => Some(("top-left", "Moving to the top-left corner.")),
-            "bottom right" | "bottom-right" | "go bottom right" => Some(("bottom-right", "Moving to the bottom-right corner.")),
-            "bottom left" | "bottom-left" | "go bottom left" => Some(("bottom-left", "Moving to the bottom-left corner.")),
+            "top left" | "top-left" | "go top left" => {
+                Some(("top-left", "Moving to the top-left corner."))
+            }
+            "bottom right" | "bottom-right" | "go bottom right" => {
+                Some(("bottom-right", "Moving to the bottom-right corner."))
+            }
+            "bottom left" | "bottom-left" | "go bottom left" => {
+                Some(("bottom-left", "Moving to the bottom-left corner."))
+            }
             _ => None,
         };
 
         if let Some((preset, reply_msg)) = direct_nav {
-            crate::logger::log("MOVEMENT", "INFO", &format!("Direct directional voice navigation: '{}'", preset));
+            crate::logger::log(
+                "MOVEMENT",
+                "INFO",
+                &format!("Direct directional voice navigation: '{}'", preset),
+            );
             let mov_arc = self.movement.clone();
             let preset_str = preset.to_string();
             tauri::async_runtime::spawn(async move {
@@ -312,29 +354,50 @@ impl AgentOrchestrator {
             || lower.contains("what do you see in the camera")
             || lower.contains("what do you see on camera")
             || (lower.contains("look") && lower.contains("camera"))
-            || (lower.contains("what") && lower.contains("see") && (lower.contains("camera") || lower.contains("webcam")));
+            || (lower.contains("what")
+                && lower.contains("see")
+                && (lower.contains("camera") || lower.contains("webcam")));
 
         let mut user_webcam_b64: Option<String> = None;
         if is_webcam_visual_query {
-            crate::logger::log("VISION", "INFO", "Webcam visual query detected. Capturing live user photo...");
+            crate::logger::log(
+                "VISION",
+                "INFO",
+                "Webcam visual query detected. Capturing live user photo...",
+            );
             user_webcam_b64 = self.capture_user_webcam().await;
             if user_webcam_b64.is_some() {
-                crate::logger::log("VISION", "SUCCESS", "Live webcam photo captured for Gemini vision analysis.");
+                crate::logger::log(
+                    "VISION",
+                    "SUCCESS",
+                    "Live webcam photo captured for Gemini vision analysis.",
+                );
             } else {
-                crate::logger::log("VISION", "WARN", "Webcam photo capture returned empty or timed out.");
+                crate::logger::log(
+                    "VISION",
+                    "WARN",
+                    "Webcam photo capture returned empty or timed out.",
+                );
             }
         }
 
         let mut screen_image_b64: Option<String> = None;
         let is_screen_query = (enable_vision
-            || (lower.contains("screen") && (lower.contains("what") || lower.contains("read") || lower.contains("look at") || lower.contains("see"))))
+            || (lower.contains("screen")
+                && (lower.contains("what")
+                    || lower.contains("read")
+                    || lower.contains("look at")
+                    || lower.contains("see"))))
             && user_webcam_b64.is_none();
 
         if is_screen_query {
             println!("[Orchestrator] Screen vision enabled, capturing desktop screen...");
             match VisionEngine::capture_screen() {
                 Ok(cap) => {
-                    println!("[Orchestrator] Screen captured: {}x{}", cap.width, cap.height);
+                    println!(
+                        "[Orchestrator] Screen captured: {}x{}",
+                        cap.width, cap.height
+                    );
                     screen_image_b64 = Some(cap.base64_image);
                 }
                 Err(e) => {
@@ -414,7 +477,11 @@ impl AgentOrchestrator {
         // 6. Generate Response using active LLM (Gemini 2.0 Flash by default) with tool support
         let llm_guard = self.llm.lock().await;
         let model_name = llm_guard.config.active_model.display_name();
-        crate::logger::log("ORCHESTRATOR", "INFO", &format!("Processing message with model: {}", model_name));
+        crate::logger::log(
+            "ORCHESTRATOR",
+            "INFO",
+            &format!("Processing message with model: {}", model_name),
+        );
 
         let vision_image_to_pass = if user_webcam_b64.is_some() {
             user_webcam_b64.as_deref()
@@ -423,18 +490,18 @@ impl AgentOrchestrator {
         };
 
         let llm_output = if let Some(ref write_req) = pending_write {
-            crate::logger::log("SECURITY", "WARN", &format!("Write action guarded: {}", write_req));
+            crate::logger::log(
+                "SECURITY",
+                "WARN",
+                &format!("Write action guarded: {}", write_req),
+            );
             crate::llm::LlmOutput::Text(format!(
                 "I detected an action that modifies files: '{}'. Under our strict safety policy, please click 'Authorize' on the Golden Orb security prompt to proceed.",
                 write_req
             ))
         } else {
             match llm_guard
-                .generate_with_tools(
-                    user_text,
-                    &context_str,
-                    vision_image_to_pass,
-                )
+                .generate_with_tools(user_text, &context_str, vision_image_to_pass)
                 .await
             {
                 Ok(out) => out,
@@ -452,32 +519,53 @@ impl AgentOrchestrator {
         let mut pc_action: Option<String> = None;
 
         match llm_output {
-            crate::llm::LlmOutput::ToolCalls { calls, raw_parts, combined_prompt } => {
-                crate::logger::log("ORCHESTRATOR", "INFO", &format!("Executing {} tool calls simultaneously...", calls.len()));
+            crate::llm::LlmOutput::ToolCalls {
+                calls,
+                raw_parts,
+                combined_prompt,
+            } => {
+                crate::logger::log(
+                    "ORCHESTRATOR",
+                    "INFO",
+                    &format!("Executing {} tool calls simultaneously...", calls.len()),
+                );
                 let mut tool_responses = Vec::new();
                 let mut session_actions: Vec<(String, String)> = Vec::new();
                 let mut should_clear_session = false;
 
                 for call in &calls {
-                    crate::logger::log("TOOLS", "INFO", &format!("Tool Call: '{}' with {:?}", call.name, call.args));
+                    crate::logger::log(
+                        "TOOLS",
+                        "INFO",
+                        &format!("Tool Call: '{}' with {:?}", call.name, call.args),
+                    );
                     match call.name.as_str() {
                         "find_and_open_folder" => {
-                            let folder_name = call.args.get("folder_name")
+                            let folder_name = call
+                                .args
+                                .get("folder_name")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("");
-                            let res = crate::pc_controller::PcController::find_and_open_folder(folder_name);
+                            let res = crate::pc_controller::PcController::find_and_open_folder(
+                                folder_name,
+                            );
                             pc_action = Some(format!("open_folder {}", folder_name));
                             session_actions.push((
                                 "find_and_open_folder".to_string(),
                                 format!("Opened folder '{}': {}", folder_name, res.message),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": if res.success { "success" } else { "not_found" },
-                                "message": res.message
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": if res.success { "success" } else { "not_found" },
+                                    "message": res.message
+                                }),
+                            ));
                         }
                         "search_folders" => {
-                            let query = call.args.get("query")
+                            let query = call
+                                .args
+                                .get("query")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("");
                             let res = crate::pc_controller::PcController::search_folders(query);
@@ -485,10 +573,13 @@ impl AgentOrchestrator {
                                 "search_folders".to_string(),
                                 format!("Searched folders for '{}': {}", query, res.message),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": if res.success { "success" } else { "not_found" },
-                                "result": res.message
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": if res.success { "success" } else { "not_found" },
+                                    "result": res.message
+                                }),
+                            ));
                         }
                         "get_current_desktop_location" => {
                             let mut mov = self.movement.lock().await;
@@ -497,50 +588,83 @@ impl AgentOrchestrator {
                                 "get_current_desktop_location".to_string(),
                                 format!("Live desktop location: {}", loc),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "location": loc
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "location": loc
+                                }),
+                            ));
                         }
                         "clear_session_context" => {
                             should_clear_session = true;
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "message": "Active session context and history cleared."
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "message": "Active session context and history cleared."
+                                }),
+                            ));
                         }
                         "create_desktop_folder" => {
-                            let folder_name = call.args.get("folder_name")
+                            let folder_name = call
+                                .args
+                                .get("folder_name")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("New Folder");
-                            let res = crate::pc_controller::PcController::create_folder(folder_name, None);
+                            let res = crate::pc_controller::PcController::create_folder(
+                                folder_name,
+                                None,
+                            );
                             pc_action = Some(format!("create_folder {}", folder_name));
                             session_actions.push((
                                 "create_desktop_folder".to_string(),
-                                format!("Created desktop folder '{}': {}", folder_name, res.message),
+                                format!(
+                                    "Created desktop folder '{}': {}",
+                                    folder_name, res.message
+                                ),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": if res.success { "success" } else { "error" },
-                                "message": res.message
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": if res.success { "success" } else { "error" },
+                                    "message": res.message
+                                }),
+                            ));
                         }
                         "search_desktop_files_or_folders" => {
-                            let query = call.args.get("query")
+                            let query = call
+                                .args
+                                .get("query")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("");
-                            let res = crate::pc_controller::PcController::search_desktop_files_or_folders(query);
+                            let res =
+                                crate::pc_controller::PcController::search_desktop_files_or_folders(
+                                    query,
+                                );
                             session_actions.push((
                                 "search_desktop_files_or_folders".to_string(),
                                 format!("Searched desktop for '{}': {}", query, res.message),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": if res.success { "success" } else { "not_found" },
-                                "result": res.message
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": if res.success { "success" } else { "not_found" },
+                                    "result": res.message
+                                }),
+                            ));
                         }
                         "store_vectordb_memory" => {
-                            let fact = call.args.get("fact").and_then(|v| v.as_str()).unwrap_or(user_text);
-                            let category = call.args.get("category").and_then(|v| v.as_str()).unwrap_or("personal_info");
+                            let fact = call
+                                .args
+                                .get("fact")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or(user_text);
+                            let category = call
+                                .args
+                                .get("category")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("personal_info");
                             let mem_item = crate::memory::MemoryItem {
                                 id: uuid::Uuid::new_v4().to_string(),
                                 text: fact.to_string(),
@@ -563,24 +687,36 @@ impl AgentOrchestrator {
                             })));
                         }
                         "search_vectordb_memory" => {
-                            let query = call.args.get("query")
+                            let query = call
+                                .args
+                                .get("query")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or(user_text);
                             let memory_guard = self.memory.lock().await;
                             let mems = memory_guard.query_relevant_memories(query, 5).await;
                             drop(memory_guard);
-                            let mem_texts: Vec<String> = mems.iter().map(|m| m.text.clone()).collect();
+                            let mem_texts: Vec<String> =
+                                mems.iter().map(|m| m.text.clone()).collect();
                             session_actions.push((
                                 "search_vectordb_memory".to_string(),
-                                format!("Retrieved memory for '{}': {} items", query, mem_texts.len()),
+                                format!(
+                                    "Retrieved memory for '{}': {} items",
+                                    query,
+                                    mem_texts.len()
+                                ),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "memories_found": mem_texts
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "memories_found": mem_texts
+                                }),
+                            ));
                         }
                         "open_folder_or_app" => {
-                            let target = call.args.get("target")
+                            let target = call
+                                .args
+                                .get("target")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("desktop");
                             let res = crate::pc_controller::PcController::open_path_or_app(target);
@@ -589,60 +725,94 @@ impl AgentOrchestrator {
                                 "open_folder_or_app".to_string(),
                                 format!("Opened target '{}': {}", target, res.message),
                             ));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": if res.success { "success" } else { "error" },
-                                "message": res.message
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": if res.success { "success" } else { "error" },
+                                    "message": res.message
+                                }),
+                            ));
                         }
                         "minimize_window" => {
                             if let Some(ref handle) = self.app_handle {
-                                let res = crate::pc_controller::PcController::minimize_window(handle);
+                                let res =
+                                    crate::pc_controller::PcController::minimize_window(handle);
                                 pc_action = Some("minimize".to_string());
-                                session_actions.push(("minimize_window".to_string(), "Minimized window".to_string()));
-                                tool_responses.push((call.name.clone(), serde_json::json!({
-                                    "status": "success",
-                                    "message": res.message
-                                })));
+                                session_actions.push((
+                                    "minimize_window".to_string(),
+                                    "Minimized window".to_string(),
+                                ));
+                                tool_responses.push((
+                                    call.name.clone(),
+                                    serde_json::json!({
+                                        "status": "success",
+                                        "message": res.message
+                                    }),
+                                ));
                             } else {
-                                tool_responses.push((call.name.clone(), serde_json::json!({
-                                    "status": "success",
-                                    "message": "Window minimize requested"
-                                })));
+                                tool_responses.push((
+                                    call.name.clone(),
+                                    serde_json::json!({
+                                        "status": "success",
+                                        "message": "Window minimize requested"
+                                    }),
+                                ));
                             }
                         }
                         "restore_window" => {
                             if let Some(ref handle) = self.app_handle {
-                                let res = crate::pc_controller::PcController::unminimize_window(handle);
+                                let res =
+                                    crate::pc_controller::PcController::unminimize_window(handle);
                                 pc_action = Some("restore".to_string());
-                                session_actions.push(("restore_window".to_string(), "Restored window".to_string()));
-                                tool_responses.push((call.name.clone(), serde_json::json!({
-                                    "status": "success",
-                                    "message": res.message
-                                })));
+                                session_actions.push((
+                                    "restore_window".to_string(),
+                                    "Restored window".to_string(),
+                                ));
+                                tool_responses.push((
+                                    call.name.clone(),
+                                    serde_json::json!({
+                                        "status": "success",
+                                        "message": res.message
+                                    }),
+                                ));
                             } else {
-                                tool_responses.push((call.name.clone(), serde_json::json!({
-                                    "status": "success",
-                                    "message": "Window restore requested"
-                                })));
+                                tool_responses.push((
+                                    call.name.clone(),
+                                    serde_json::json!({
+                                        "status": "success",
+                                        "message": "Window restore requested"
+                                    }),
+                                ));
                             }
                         }
                         "change_ui_color" => {
-                            let color = call.args.get("color")
+                            let color = call
+                                .args
+                                .get("color")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("default");
                             color_action = Some(color.to_string());
                             if let Some(ref handle) = self.app_handle {
                                 use tauri::Emitter;
-                                let _ = handle.emit("aura-color", serde_json::json!({ "color": color }));
+                                let _ = handle
+                                    .emit("aura-color", serde_json::json!({ "color": color }));
                             }
-                            session_actions.push(("change_ui_color".to_string(), format!("Changed UI color to '{}'", color)));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "color": color
-                            })));
+                            session_actions.push((
+                                "change_ui_color".to_string(),
+                                format!("Changed UI color to '{}'", color),
+                            ));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "color": color
+                                }),
+                            ));
                         }
                         "move_desktop_position" => {
-                            let pos = call.args.get("position")
+                            let pos = call
+                                .args
+                                .get("position")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("top-right");
                             let mov_arc = self.movement.clone();
@@ -657,14 +827,22 @@ impl AgentOrchestrator {
                                     let _ = mov.move_to_preset(&pos_str).await;
                                 }
                             });
-                            session_actions.push(("move_desktop_position".to_string(), format!("Moved position to '{}'", pos)));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "new_position": pos
-                            })));
+                            session_actions.push((
+                                "move_desktop_position".to_string(),
+                                format!("Moved position to '{}'", pos),
+                            ));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "new_position": pos
+                                }),
+                            ));
                         }
                         "toggle_hand_tracking" => {
-                            let enable = call.args.get("enable")
+                            let enable = call
+                                .args
+                                .get("enable")
                                 .and_then(|v| v.as_bool())
                                 .unwrap_or(true);
                             if let Some(ref tracker) = self.hand_tracker {
@@ -679,12 +857,16 @@ impl AgentOrchestrator {
                             } else {
                                 "Vision and hand tracking deactivated."
                             };
-                            session_actions.push(("toggle_hand_tracking".to_string(), msg.to_string()));
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "success",
-                                "tracking": enable,
-                                "message": msg
-                            })));
+                            session_actions
+                                .push(("toggle_hand_tracking".to_string(), msg.to_string()));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "success",
+                                    "tracking": enable,
+                                    "message": msg
+                                }),
+                            ));
                         }
                         "look_at_user_webcam" => {
                             let snapshot = self.capture_user_webcam().await;
@@ -706,9 +888,12 @@ impl AgentOrchestrator {
                             })));
                         }
                         _ => {
-                            tool_responses.push((call.name.clone(), serde_json::json!({
-                                "status": "unsupported_tool"
-                            })));
+                            tool_responses.push((
+                                call.name.clone(),
+                                serde_json::json!({
+                                    "status": "unsupported_tool"
+                                }),
+                            ));
                         }
                     }
                 }
@@ -723,27 +908,40 @@ impl AgentOrchestrator {
                 }
 
                 // Check if any tool called was an informational query (search_vectordb_memory, search_folders, or look_at_user_webcam)
-                let has_info_query = calls.iter().any(|c| c.name == "search_vectordb_memory" || c.name == "search_folders" || c.name == "look_at_user_webcam");
+                let has_info_query = calls.iter().any(|c| {
+                    c.name == "search_vectordb_memory"
+                        || c.name == "search_folders"
+                        || c.name == "look_at_user_webcam"
+                });
 
                 if has_info_query {
                     let llm_guard = self.llm.lock().await;
-                    final_reply = match llm_guard.send_tool_results_to_gemini(
-                        &combined_prompt,
-                        raw_parts,
-                        &tool_responses,
-                        user_webcam_b64.as_deref(),
-                    ).await {
+                    final_reply = match llm_guard
+                        .send_tool_results_to_gemini(
+                            &combined_prompt,
+                            raw_parts,
+                            &tool_responses,
+                            user_webcam_b64.as_deref(),
+                        )
+                        .await
+                    {
                         Ok(speech) if !speech.trim().is_empty() => speech,
                         _ => {
-                            let memory_texts: Vec<String> = tool_responses.iter()
+                            let memory_texts: Vec<String> = tool_responses
+                                .iter()
                                 .filter(|(name, _)| name == "search_vectordb_memory")
-                                .filter_map(|(_, resp)| resp.get("memories_found").and_then(|m| m.as_array()))
+                                .filter_map(|(_, resp)| {
+                                    resp.get("memories_found").and_then(|m| m.as_array())
+                                })
                                 .flatten()
                                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                                 .collect();
 
                             if !memory_texts.is_empty() {
-                                format!("According to your ChromaDB memory: {}.", memory_texts.join("; "))
+                                format!(
+                                    "According to your ChromaDB memory: {}.",
+                                    memory_texts.join("; ")
+                                )
                             } else {
                                 "I checked your ChromaDB records, but couldn't find any saved entries for that yet.".to_string()
                             }
@@ -768,15 +966,31 @@ impl AgentOrchestrator {
                         }
                     } else if let Some(ref col) = color_action {
                         format!("I've changed my color to {}.", col)
-                    } else if let Some(ref act) = calls.iter().find(|c| c.name == "store_vectordb_memory") {
-                        let fact = act.args.get("fact").and_then(|v| v.as_str()).unwrap_or("that detail");
-                        format!("I've stored that in your permanent ChromaDB memory: '{}'.", fact)
-                    } else if let Some(ref act) = calls.iter().find(|c| c.name == "toggle_hand_tracking") {
-                        let enable = act.args.get("enable").and_then(|v| v.as_bool()).unwrap_or(true);
+                    } else if let Some(ref act) =
+                        calls.iter().find(|c| c.name == "store_vectordb_memory")
+                    {
+                        let fact = act
+                            .args
+                            .get("fact")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("that detail");
+                        format!(
+                            "I've stored that in your permanent ChromaDB memory: '{}'.",
+                            fact
+                        )
+                    } else if let Some(ref act) =
+                        calls.iter().find(|c| c.name == "toggle_hand_tracking")
+                    {
+                        let enable = act
+                            .args
+                            .get("enable")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(true);
                         if enable {
                             "I've activated vision and hand tracking! Move your hand in front of the camera and I will follow you on the screen.".to_string()
                         } else {
-                            "Hand tracking has been deactivated. I'm holding my position.".to_string()
+                            "Hand tracking has been deactivated. I'm holding my position."
+                                .to_string()
                         }
                     } else {
                         "Done! I've completed your request.".to_string()
@@ -791,7 +1005,11 @@ impl AgentOrchestrator {
                 if let Some(start) = final_reply.find("[MOVE:") {
                     if let Some(end) = final_reply[start..].find(']') {
                         let tag = &final_reply[start..start + end + 1];
-                        let action = tag.trim_start_matches("[MOVE:").trim_end_matches(']').trim().to_lowercase();
+                        let action = tag
+                            .trim_start_matches("[MOVE:")
+                            .trim_end_matches(']')
+                            .trim()
+                            .to_lowercase();
                         movement_action = Some(action);
                         final_reply = final_reply.replace(tag, "").trim().to_string();
                     }
@@ -800,7 +1018,11 @@ impl AgentOrchestrator {
                 if let Some(start) = final_reply.find("[COLOR:") {
                     if let Some(end) = final_reply[start..].find(']') {
                         let tag = &final_reply[start..start + end + 1];
-                        let color_val = tag.trim_start_matches("[COLOR:").trim_end_matches(']').trim().to_lowercase();
+                        let color_val = tag
+                            .trim_start_matches("[COLOR:")
+                            .trim_end_matches(']')
+                            .trim()
+                            .to_lowercase();
                         color_action = Some(color_val);
                         final_reply = final_reply.replace(tag, "").trim().to_string();
                     }
@@ -809,7 +1031,11 @@ impl AgentOrchestrator {
                 if let Some(start) = final_reply.find("[PC:") {
                     if let Some(end) = final_reply[start..].find(']') {
                         let tag = &final_reply[start..start + end + 1];
-                        let action = tag.trim_start_matches("[PC:").trim_end_matches(']').trim().to_string();
+                        let action = tag
+                            .trim_start_matches("[PC:")
+                            .trim_end_matches(']')
+                            .trim()
+                            .to_string();
                         pc_action = Some(action);
                         final_reply = final_reply.replace(tag, "").trim().to_string();
                     }

@@ -127,7 +127,11 @@ impl SecurityManager {
                     approved_by_user: true,
                     status: "Completed with User Permission".to_string(),
                 });
-                Ok(format!("Successfully wrote {} bytes to {}", content.len(), path_str))
+                Ok(format!(
+                    "Successfully wrote {} bytes to {}",
+                    content.len(),
+                    path_str
+                ))
             }
             Err(e) => Err(format!("Failed to write to {}: {}", path_str, e)),
         }
@@ -158,9 +162,7 @@ impl SecurityManager {
                 .args(["-Command", command_str])
                 .output()
         } else {
-            Command::new("sh")
-                .args(["-c", command_str])
-                .output()
+            Command::new("sh").args(["-c", command_str]).output()
         };
 
         match output {
@@ -173,7 +175,11 @@ impl SecurityManager {
                     target: command_str.to_string(),
                     timestamp: chrono::Utc::now().timestamp(),
                     approved_by_user: true,
-                    status: if res.status.success() { "Success".to_string() } else { "Failed".to_string() },
+                    status: if res.status.success() {
+                        "Success".to_string()
+                    } else {
+                        "Failed".to_string()
+                    },
                 });
 
                 if res.status.success() {

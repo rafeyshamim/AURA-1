@@ -75,7 +75,11 @@ impl ChromaMemoryEngine {
                     if file.read_to_string(&mut content).is_ok() {
                         if let Ok(items) = serde_json::from_str::<Vec<MemoryItem>>(&content) {
                             if !items.is_empty() {
-                                println!("[ChromaDB] Loaded {} existing memories from disk (from {:?}).", items.len(), cache_file);
+                                println!(
+                                    "[ChromaDB] Loaded {} existing memories from disk (from {:?}).",
+                                    items.len(),
+                                    cache_file
+                                );
                                 loaded_memories = items;
                                 storage_dir = dir.clone();
                                 break;
@@ -111,7 +115,8 @@ impl ChromaMemoryEngine {
 
         Self {
             base_url: base_url.unwrap_or_else(|| "http://localhost:8000/api/v1".to_string()),
-            collection_name: collection_name.unwrap_or_else(|| "aura_conversation_memory".to_string()),
+            collection_name: collection_name
+                .unwrap_or_else(|| "aura_conversation_memory".to_string()),
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(4))
                 .connect_timeout(std::time::Duration::from_secs(2))
@@ -152,7 +157,10 @@ impl ChromaMemoryEngine {
             Ok(res) if res.status().is_success() => {
                 if let Ok(json_val) = res.json::<Value>().await {
                     if let Some(arr) = json_val["embedding"]["values"].as_array() {
-                        let vec: Vec<f32> = arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect();
+                        let vec: Vec<f32> = arr
+                            .iter()
+                            .filter_map(|v| v.as_f64().map(|f| f as f32))
+                            .collect();
                         if !vec.is_empty() {
                             return Some(vec);
                         }
@@ -162,7 +170,11 @@ impl ChromaMemoryEngine {
             Ok(res) => {
                 let status = res.status();
                 let err = res.text().await.unwrap_or_default();
-                crate::logger::log("CHROMA", "WARN", &format!("Embedding generation failed (HTTP {}): {}", status, err));
+                crate::logger::log(
+                    "CHROMA",
+                    "WARN",
+                    &format!("Embedding generation failed (HTTP {}): {}", status, err),
+                );
             }
             Err(e) => {
                 crate::logger::log("CHROMA", "WARN", &format!("Embedding network error: {}", e));
@@ -224,7 +236,11 @@ impl ChromaMemoryEngine {
         }
 
         // 3. House / Residence / Family
-        if lower.contains("house") || lower.contains("home") || lower.contains("i live in") || lower.contains("my address") {
+        if lower.contains("house")
+            || lower.contains("home")
+            || lower.contains("i live in")
+            || lower.contains("my address")
+        {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
                 text: format!("User home / location: {}", text.trim()),
@@ -236,7 +252,11 @@ impl ChromaMemoryEngine {
         }
 
         // 4. Preferences / Likes
-        if lower.contains("i like") || lower.contains("i love") || lower.contains("i prefer") || lower.contains("my favorite") {
+        if lower.contains("i like")
+            || lower.contains("i love")
+            || lower.contains("i prefer")
+            || lower.contains("my favorite")
+        {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
                 text: format!("User preference: {}", text.trim()),
@@ -248,7 +268,10 @@ impl ChromaMemoryEngine {
         }
 
         // 5. Projects
-        if lower.contains("i am working on") || lower.contains("my project") || lower.contains("project 7") {
+        if lower.contains("i am working on")
+            || lower.contains("my project")
+            || lower.contains("project 7")
+        {
             extracted.push(MemoryItem {
                 id: Uuid::new_v4().to_string(),
                 text: format!("User project context: {}", text.trim()),
@@ -281,7 +304,11 @@ impl ChromaMemoryEngine {
 
         // 7. General declarative "My ... is ..." statements (e.g. "My car is red", "My phone is ...")
         if (lower.starts_with("my ") || lower.contains(" my ")) && lower.contains(" is ") {
-            if !lower.contains("what") && !lower.contains("when") && !lower.contains("where") && !lower.contains("?") {
+            if !lower.contains("what")
+                && !lower.contains("when")
+                && !lower.contains("where")
+                && !lower.contains("?")
+            {
                 extracted.push(MemoryItem {
                     id: Uuid::new_v4().to_string(),
                     text: format!("User fact: {}", text.trim()),
@@ -306,7 +333,14 @@ impl ChromaMemoryEngine {
         // Cache locally and persist to disk
         self.local_cache.push(item.clone());
         self.persist_to_disk();
-        crate::logger::log("MEMORY", "INFO", &format!("Appended context to ChromaDB (Total: {} entries)", self.local_cache.len()));
+        crate::logger::log(
+            "MEMORY",
+            "INFO",
+            &format!(
+                "Appended context to ChromaDB (Total: {} entries)",
+                self.local_cache.len()
+            ),
+        );
 
         // Also post to ChromaDB REST service if running
         let endpoint = format!("{}/collections/{}/add", self.base_url, self.collection_name);
@@ -349,13 +383,20 @@ impl ChromaMemoryEngine {
             prompt_lower.push_str(" name identity rafi");
         }
 
-        let prompt_words: Vec<&str> = prompt_lower.split_whitespace().filter(|w| w.len() >= 3).collect();
+        let prompt_words: Vec<&str> = prompt_lower
+            .split_whitespace()
+            .filter(|w| w.len() >= 3)
+            .collect();
 
-        let mut scored: Vec<(usize, MemoryItem)> = self.local_cache
+        let mut scored: Vec<(usize, MemoryItem)> = self
+            .local_cache
             .iter()
             .filter_map(|m| {
                 let m_lower = m.text.to_lowercase();
-                let matches = prompt_words.iter().filter(|&&w| m_lower.contains(w)).count();
+                let matches = prompt_words
+                    .iter()
+                    .filter(|&&w| m_lower.contains(w))
+                    .count();
                 if matches > 0 {
                     Some((matches, m.clone()))
                 } else {
@@ -395,7 +436,8 @@ impl ChromaMemoryEngine {
 
         if let Some(q_vec) = query_emb {
             // Rank memories by cosine similarity with Gemini embeddings
-            let mut scored: Vec<(f32, MemoryItem)> = self.local_cache
+            let mut scored: Vec<(f32, MemoryItem)> = self
+                .local_cache
                 .iter()
                 .filter_map(|m| {
                     m.embedding.as_ref().map(|emb| {

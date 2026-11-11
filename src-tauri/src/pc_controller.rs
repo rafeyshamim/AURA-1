@@ -18,7 +18,9 @@ impl PcController {
     /// Checks for OneDrive\Desktop first (synced active desktop), then local USERPROFILE\Desktop.
     pub fn get_desktop_dir() -> PathBuf {
         if let Ok(user_profile) = std::env::var("USERPROFILE") {
-            let onedrive_desktop = PathBuf::from(&user_profile).join("OneDrive").join("Desktop");
+            let onedrive_desktop = PathBuf::from(&user_profile)
+                .join("OneDrive")
+                .join("Desktop");
             if onedrive_desktop.exists() {
                 return onedrive_desktop;
             }
@@ -135,7 +137,11 @@ impl PcController {
 
     /// Search across Desktop and user directories for folders matching a query
     pub fn search_folders(query: &str) -> PcActionResult {
-        let clean_q = query.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+        let clean_q = query
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_lowercase();
         if clean_q.is_empty() {
             return PcActionResult {
                 success: false,
@@ -166,7 +172,10 @@ impl PcController {
         }
 
         if found_folders.is_empty() {
-            let msg = format!("No folders matching '{}' were found on Desktop or common user directories.", query);
+            let msg = format!(
+                "No folders matching '{}' were found on Desktop or common user directories.",
+                query
+            );
             crate::logger::log("PC_ACTION", "INFO", &msg);
             PcActionResult {
                 success: false,
@@ -176,10 +185,20 @@ impl PcController {
         } else {
             let list_str = found_folders
                 .iter()
-                .map(|p| format!("'{}' at {:?}", p.file_name().unwrap_or_default().to_string_lossy(), p))
+                .map(|p| {
+                    format!(
+                        "'{}' at {:?}",
+                        p.file_name().unwrap_or_default().to_string_lossy(),
+                        p
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let msg = format!("Found {} matching folder(s): {}", found_folders.len(), list_str);
+            let msg = format!(
+                "Found {} matching folder(s): {}",
+                found_folders.len(),
+                list_str
+            );
             crate::logger::log("PC_ACTION", "SUCCESS", &msg);
             PcActionResult {
                 success: true,
@@ -272,7 +291,10 @@ impl PcController {
                     }
                 }
                 Err(e) => {
-                    let err_msg = format!("Found folder at {:?}, but failed to launch File Explorer: {}", path, e);
+                    let err_msg = format!(
+                        "Found folder at {:?}, but failed to launch File Explorer: {}",
+                        path, e
+                    );
                     crate::logger::log("PC_ACTION", "ERROR", &err_msg);
                     PcActionResult {
                         success: false,
@@ -313,7 +335,10 @@ impl PcController {
         }
 
         if matches.is_empty() {
-            let msg = format!("No files or folders matching '{}' were found on Desktop ({:?}).", query, desktop);
+            let msg = format!(
+                "No files or folders matching '{}' were found on Desktop ({:?}).",
+                query, desktop
+            );
             crate::logger::log("PC_ACTION", "INFO", &msg);
             PcActionResult {
                 success: false,
@@ -337,7 +362,11 @@ impl PcController {
         let lower = trimmed.to_lowercase();
 
         // 1. If user asks to open Desktop or Explorer
-        if lower == "desktop" || lower == "the desktop" || lower == "my desktop" || lower == "explorer" {
+        if lower == "desktop"
+            || lower == "the desktop"
+            || lower == "my desktop"
+            || lower == "explorer"
+        {
             let desktop = Self::get_desktop_dir();
             let mut cmd = Command::new("explorer.exe");
             cmd.arg(&desktop);
@@ -450,7 +479,7 @@ impl PcController {
     /// Execute a safe command requested by voice (fallback handler)
     pub fn execute_voice_command(app_handle: &AppHandle, cmd_str: &str) -> Option<PcActionResult> {
         let lower = cmd_str.to_lowercase();
-        
+
         if lower.contains("minimize") {
             return Some(Self::minimize_window(app_handle));
         }
@@ -459,7 +488,10 @@ impl PcController {
             return Some(Self::unminimize_window(app_handle));
         }
 
-        if lower.contains("search desktop") || lower.contains("find folder") || lower.contains("find file") {
+        if lower.contains("search desktop")
+            || lower.contains("find folder")
+            || lower.contains("find file")
+        {
             let query = if let Some(idx) = lower.find("for ") {
                 &cmd_str[idx + 4..]
             } else if let Some(idx) = lower.find("named ") {
@@ -470,15 +502,31 @@ impl PcController {
             return Some(Self::search_desktop_files_or_folders(query));
         }
 
-        if lower.contains("create folder") || lower.contains("make a folder") || lower.contains("new folder") {
+        if lower.contains("create folder")
+            || lower.contains("make a folder")
+            || lower.contains("new folder")
+        {
             let name = if let Some(idx) = lower.find("named") {
-                cmd_str[idx + 5..].trim().trim_matches('"').trim_matches('\'')
+                cmd_str[idx + 5..]
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
             } else if let Some(idx) = lower.find("called") {
-                cmd_str[idx + 6..].trim().trim_matches('"').trim_matches('\'')
+                cmd_str[idx + 6..]
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
             } else if let Some(idx) = lower.find("folder") {
                 let sub = cmd_str[idx + 6..].trim();
-                let candidate = sub.trim_start_matches("called").trim_start_matches("named").trim();
-                if candidate.is_empty() { "New Folder" } else { candidate }
+                let candidate = sub
+                    .trim_start_matches("called")
+                    .trim_start_matches("named")
+                    .trim();
+                if candidate.is_empty() {
+                    "New Folder"
+                } else {
+                    candidate
+                }
             } else {
                 "New Folder"
             };
@@ -506,7 +554,10 @@ impl PcController {
             return Some(Self::open_path_or_app("calc"));
         }
 
-        if lower.contains("open explorer") || lower.contains("open my desktop") || lower.contains("open desktop") {
+        if lower.contains("open explorer")
+            || lower.contains("open my desktop")
+            || lower.contains("open desktop")
+        {
             return Some(Self::open_path_or_app("desktop"));
         }
 
