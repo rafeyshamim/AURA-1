@@ -201,11 +201,13 @@ impl MovementController {
         for i in 1..=steps {
             let progress = i as f32 / steps as f32;
             // Quintic smoothstep for buttery-smooth, fluid gliding
-            let eased = progress * progress * progress * (progress * (progress * 6.0 - 15.0) + 10.0);
+            let eased =
+                progress * progress * progress * (progress * (progress * 6.0 - 15.0) + 10.0);
             let cur_x = (start_x + (dest_x - start_x) * eased) as i32;
             let cur_y = (start_y + (dest_y - start_y) * eased) as i32;
 
-            let _ = window.set_position(Position::Physical(PhysicalPosition { x: cur_x, y: cur_y }));
+            let _ =
+                window.set_position(Position::Physical(PhysicalPosition { x: cur_x, y: cur_y }));
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
@@ -228,18 +230,28 @@ impl MovementController {
 
         let (tx, ty) = match preset.to_lowercase().replace('_', "-").as_str() {
             "top-right" | "topright" | "tr" => (mon_x + mon_w - win_w - pad_x, mon_y + pad_y),
-            "bottom-right" | "bottomright" | "br" | "dock" => (mon_x + mon_w - win_w - pad_x, mon_y + mon_h - win_h - pad_y),
+            "bottom-right" | "bottomright" | "br" | "dock" => {
+                (mon_x + mon_w - win_w - pad_x, mon_y + mon_h - win_h - pad_y)
+            }
             "top-left" | "topleft" | "tl" => (mon_x + pad_x, mon_y + pad_y),
             "bottom-left" | "bottomleft" | "bl" => (mon_x + pad_x, mon_y + mon_h - win_h - pad_y),
             "center" | "middle" => (mon_x + (mon_w - win_w) / 2, mon_y + (mon_h - win_h) / 2),
             "top-center" | "top" => (mon_x + (mon_w - win_w) / 2, mon_y + pad_y),
-            "bottom-center" | "bottom" => (mon_x + (mon_w - win_w) / 2, mon_y + mon_h - win_h - pad_y),
+            "bottom-center" | "bottom" => {
+                (mon_x + (mon_w - win_w) / 2, mon_y + mon_h - win_h - pad_y)
+            }
             "middle-left" | "left" => (mon_x + pad_x, mon_y + (mon_h - win_h) / 2),
-            "middle-right" | "right" => (mon_x + mon_w - win_w - pad_x, mon_y + (mon_h - win_h) / 2),
+            "middle-right" | "right" => {
+                (mon_x + mon_w - win_w - pad_x, mon_y + (mon_h - win_h) / 2)
+            }
             other => return Err(format!("Unknown position preset: {}", other)),
         };
 
-        crate::logger::log("MOVEMENT", "INFO", &format!("Gliding AURA to '{}' (x: {}, y: {})", preset, tx, ty));
+        crate::logger::log(
+            "MOVEMENT",
+            "INFO",
+            &format!("Gliding AURA to '{}' (x: {}, y: {})", preset, tx, ty),
+        );
         self.glide_to(tx, ty).await?;
         Ok(format!("Moved to {}", preset))
     }
@@ -253,7 +265,11 @@ impl MovementController {
         self.refresh_display_info();
         self.is_roaming.store(true, Ordering::SeqCst);
         self.roam_mode = RoamMode::AutonomousFloat;
-        crate::logger::log("MOVEMENT", "INFO", "AURA autonomous floating roam activated.");
+        crate::logger::log(
+            "MOVEMENT",
+            "INFO",
+            "AURA autonomous floating roam activated.",
+        );
 
         let app_opt = self.app_handle.clone();
         let is_roam_flag = self.is_roaming.clone();
@@ -310,7 +326,11 @@ impl MovementController {
         if self.is_roaming.load(Ordering::SeqCst) {
             self.is_roaming.store(false, Ordering::SeqCst);
             self.roam_mode = RoamMode::Stationary;
-            crate::logger::log("MOVEMENT", "INFO", "AURA autonomous floating stopped. Window stationary.");
+            crate::logger::log(
+                "MOVEMENT",
+                "INFO",
+                "AURA autonomous floating stopped. Window stationary.",
+            );
         }
     }
 }

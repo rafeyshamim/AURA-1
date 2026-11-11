@@ -97,7 +97,11 @@ async fn open_log_file() -> Result<String, String> {
 async fn set_active_model(state: State<'_, AppState>, model_id: String) -> Result<String, String> {
     let mut orch = state.orchestrator.lock().await;
     orch.set_model(&model_id).await;
-    logger::log("LLM", "INFO", &format!("Switched active model to: {}", model_id));
+    logger::log(
+        "LLM",
+        "INFO",
+        &format!("Switched active model to: {}", model_id),
+    );
     Ok(format!("Model switched to {}", model_id))
 }
 
@@ -113,7 +117,11 @@ async fn capture_screen() -> Result<ScreenCaptureResult, String> {
     logger::log("VISION", "INFO", "Capturing Windows desktop screen...");
     let res = vision::VisionEngine::capture_screen();
     match &res {
-        Ok(cap) => logger::log("VISION", "SUCCESS", &format!("Captured screen: {}x{}", cap.width, cap.height)),
+        Ok(cap) => logger::log(
+            "VISION",
+            "SUCCESS",
+            &format!("Captured screen: {}x{}", cap.width, cap.height),
+        ),
         Err(e) => logger::log("VISION", "ERROR", &format!("Screen capture error: {}", e)),
     }
     res
@@ -156,12 +164,17 @@ async fn minimize_window(app_handle: tauri::AppHandle) -> Result<PcActionResult,
 
 #[tauri::command]
 async fn create_desktop_folder(folder_name: String) -> Result<PcActionResult, String> {
-    Ok(pc_controller::PcController::create_folder(&folder_name, None))
+    Ok(pc_controller::PcController::create_folder(
+        &folder_name,
+        None,
+    ))
 }
 
 #[tauri::command]
 async fn find_and_open_folder(folder_name: String) -> Result<PcActionResult, String> {
-    Ok(pc_controller::PcController::find_and_open_folder(&folder_name))
+    Ok(pc_controller::PcController::find_and_open_folder(
+        &folder_name,
+    ))
 }
 
 #[tauri::command]
@@ -182,7 +195,11 @@ async fn query_chroma_memory(
     let orch = state.orchestrator.lock().await;
     let memory = orch.memory.lock().await;
     let results = memory.query_relevant_memories(&query, 5).await;
-    logger::log("MEMORY", "INFO", &format!("Memory search for '{}': {} results", query, results.len()));
+    logger::log(
+        "MEMORY",
+        "INFO",
+        &format!("Memory search for '{}': {} results", query, results.len()),
+    );
     Ok(results)
 }
 
@@ -331,4 +348,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running AURA-1 personal agent");
 }
-

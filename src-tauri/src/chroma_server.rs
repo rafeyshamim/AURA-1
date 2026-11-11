@@ -73,7 +73,10 @@ impl ChromaServerProcess {
             crate::logger::log(
                 "CHROMA",
                 "SUCCESS",
-                &format!("ChromaDB server is already active on http://127.0.0.1:{}.", port),
+                &format!(
+                    "ChromaDB server is already active on http://127.0.0.1:{}.",
+                    port
+                ),
             );
             return process_instance;
         }
@@ -81,7 +84,10 @@ impl ChromaServerProcess {
         crate::logger::log(
             "CHROMA",
             "INFO",
-            &format!("Initializing ChromaDB vector server on http://127.0.0.1:{}...", port),
+            &format!(
+                "Initializing ChromaDB vector server on http://127.0.0.1:{}...",
+                port
+            ),
         );
 
         // Ensure persistent chroma_db directory exists in workspace
@@ -142,7 +148,11 @@ impl ChromaServerProcess {
         match cmd.spawn() {
             Ok(child) => {
                 let pid = child.id();
-                crate::logger::log("CHROMA", "INFO", &format!("Spawned ChromaDB server (PID: {})", pid));
+                crate::logger::log(
+                    "CHROMA",
+                    "INFO",
+                    &format!("Spawned ChromaDB server (PID: {})", pid),
+                );
                 if let Ok(mut guard) = child_arc.lock() {
                     *guard = Some(child);
                 }
@@ -165,22 +175,32 @@ impl ChromaServerProcess {
                             "SUCCESS",
                             &format!("ChromaDB Vector Server online and listening on http://127.0.0.1:{}!", port),
                         );
-                        let _ = app_handle.emit("chroma-status", serde_json::json!({
-                            "status": "online",
-                            "port": port,
-                            "url": format!("http://127.0.0.1:{}", port)
-                        }));
+                        let _ = app_handle.emit(
+                            "chroma-status",
+                            serde_json::json!({
+                                "status": "online",
+                                "port": port,
+                                "url": format!("http://127.0.0.1:{}", port)
+                            }),
+                        );
                     } else {
                         crate::logger::log(
                             "CHROMA",
                             "WARN",
-                            &format!("ChromaDB spawned but port {} did not respond within 10s timeout.", port),
+                            &format!(
+                                "ChromaDB spawned but port {} did not respond within 10s timeout.",
+                                port
+                            ),
                         );
                     }
                 });
             }
             Err(e) => {
-                crate::logger::log("CHROMA", "ERROR", &format!("Failed to spawn ChromaDB server: {}", e));
+                crate::logger::log(
+                    "CHROMA",
+                    "ERROR",
+                    &format!("Failed to spawn ChromaDB server: {}", e),
+                );
             }
         }
 
@@ -192,7 +212,11 @@ impl ChromaServerProcess {
         if let Ok(mut guard) = self.child.lock() {
             if let Some(mut child) = guard.take() {
                 let pid = child.id();
-                crate::logger::log("CHROMA", "INFO", &format!("Terminating ChromaDB server (PID: {})...", pid));
+                crate::logger::log(
+                    "CHROMA",
+                    "INFO",
+                    &format!("Terminating ChromaDB server (PID: {})...", pid),
+                );
 
                 #[cfg(target_os = "windows")]
                 {

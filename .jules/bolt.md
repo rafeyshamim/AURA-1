@@ -9,3 +9,7 @@
 ## 2025-02-23 - RMS Calculation Optimization with NumPy Arrays
 **Learning:** Found an inefficient root-mean-square calculation `np.sqrt(np.mean(chunk**2))` inside a high-frequency audio stream loop (64ms blocks) in `speech_engine.py`. This approach creates unnecessary intermediate arrays in memory.
 **Action:** Replaced with `math.sqrt(np.dot(chunk, chunk) / chunk.size)` which uses highly optimized C routines and avoids creating large intermediate arrays, running ~6-7x faster on numpy arrays.
+
+## 2026-11-11 - Pre-buffer Sliding Window O(1) Optimization
+**Learning:** For high-frequency sliding windows (like audio processing loops), using a standard list and calling `pop(0)` incurs an O(N) memory shift penalty.
+**Action:** Always prefer using `collections.deque(maxlen=N)` instead of lists for these use cases to avoid the O(N) penalty and ensure O(1) time complexity for rotation.

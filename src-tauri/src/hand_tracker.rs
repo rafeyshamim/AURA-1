@@ -1,3 +1,4 @@
+use crate::orchestrator::AgentOrchestrator;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as TokioMutex;
-use crate::orchestrator::AgentOrchestrator;
 
 pub struct HandTrackerProcess {
     stdin: Arc<StdMutex<Option<ChildStdin>>>,
@@ -17,7 +17,11 @@ pub struct HandTrackerProcess {
 
 impl HandTrackerProcess {
     pub fn spawn(app: AppHandle, orchestrator: Arc<TokioMutex<AgentOrchestrator>>) -> Arc<Self> {
-        crate::logger::log("VISION", "INFO", "Spawning AURA Computer Vision & Hand Tracker process...");
+        crate::logger::log(
+            "VISION",
+            "INFO",
+            "Spawning AURA Computer Vision & Hand Tracker process...",
+        );
 
         // Resolve absolute path to hand_tracker.py
         let candidates = [
@@ -37,7 +41,11 @@ impl HandTrackerProcess {
         }
 
         let script_dir = script_path.parent().unwrap_or(std::path::Path::new("."));
-        crate::logger::log("VISION", "INFO", &format!("Hand tracker script path: {:?}", script_path));
+        crate::logger::log(
+            "VISION",
+            "INFO",
+            &format!("Hand tracker script path: {:?}", script_path),
+        );
 
         let mut cmd = Command::new("python");
         cmd.arg(&script_path);
@@ -55,7 +63,11 @@ impl HandTrackerProcess {
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
-                crate::logger::log("VISION", "ERROR", &format!("Failed to start hand_tracker.py: {}", e));
+                crate::logger::log(
+                    "VISION",
+                    "ERROR",
+                    &format!("Failed to start hand_tracker.py: {}", e),
+                );
                 return Arc::new(Self {
                     stdin: Arc::new(StdMutex::new(None)),
                     child: Arc::new(StdMutex::new(None)),
@@ -83,7 +95,10 @@ impl HandTrackerProcess {
                 let reader = BufReader::new(err_pipe);
                 for line in reader.lines().flatten() {
                     let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.contains("oneDNN") && !trimmed.contains("absl") {
+                    if !trimmed.is_empty()
+                        && !trimmed.contains("oneDNN")
+                        && !trimmed.contains("absl")
+                    {
                         crate::logger::log("VISION", "WARN", trimmed);
                     }
                 }
@@ -109,38 +124,76 @@ impl HandTrackerProcess {
                         let msg_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("");
                         match msg_type {
                             "ready" => {
-                                crate::logger::log("VISION", "SUCCESS", "AURA Computer Vision & Hand Tracker is ready.");
+                                crate::logger::log(
+                                    "VISION",
+                                    "SUCCESS",
+                                    "AURA Computer Vision & Hand Tracker is ready.",
+                                );
                             }
                             "status" => {
-                                let tracking = val.get("tracking").and_then(|v| v.as_bool()).unwrap_or(false);
+                                let tracking = val
+                                    .get("tracking")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
                                 is_tracking_for_stdout.store(tracking, Ordering::SeqCst);
                                 let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("");
-                                crate::logger::log("VISION", "INFO", &format!("Hand tracking status: {} ({})", tracking, msg));
-                                let _ = app_handle.emit("aura-hand-tracking-status", serde_json::json!({
-                                    "active": tracking,
-                                    "message": msg
-                                }));
+                                crate::logger::log(
+                                    "VISION",
+                                    "INFO",
+                                    &format!("Hand tracking status: {} ({})", tracking, msg),
+                                );
+                                let _ = app_handle.emit(
+                                    "aura-hand-tracking-status",
+                                    serde_json::json!({
+                                        "active": tracking,
+                                        "message": msg
+                                    }),
+                                );
                             }
                             "webcam_snapshot" => {
-                                let success = val.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                                let success = val
+                                    .get("success")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
                                 if success {
-                                    let b64 = val.get("image_base64").and_then(|v| v.as_str()).unwrap_or("");
+                                    let b64 = val
+                                        .get("image_base64")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("");
                                     if !b64.is_empty() {
                                         if let Ok(mut guard) = snapshot_receiver.lock() {
                                             *guard = Some(b64.to_string());
                                         }
-                                        crate::logger::log("VISION", "SUCCESS", "Webcam snapshot captured successfully.");
+                                        crate::logger::log(
+                                            "VISION",
+                                            "SUCCESS",
+                                            "Webcam snapshot captured successfully.",
+                                        );
                                     }
                                 } else {
-                                    let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Failed");
-                                    crate::logger::log("VISION", "WARN", &format!("Webcam snapshot error: {}", msg));
+                                    let msg = val
+                                        .get("message")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("Failed");
+                                    crate::logger::log(
+                                        "VISION",
+                                        "WARN",
+                                        &format!("Webcam snapshot error: {}", msg),
+                                    );
                                 }
                             }
                             "hand_move" => {
-                                let detected = val.get("detected").and_then(|v| v.as_bool()).unwrap_or(false);
+                                let detected = val
+                                    .get("detected")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
                                 if detected && is_tracking_for_stdout.load(Ordering::SeqCst) {
-                                    let nx = val.get("norm_x").and_then(|v| v.as_f64()).unwrap_or(0.5) as f32;
-                                    let ny = val.get("norm_y").and_then(|v| v.as_f64()).unwrap_or(0.5) as f32;
+                                    let nx =
+                                        val.get("norm_x").and_then(|v| v.as_f64()).unwrap_or(0.5)
+                                            as f32;
+                                    let ny =
+                                        val.get("norm_y").and_then(|v| v.as_f64()).unwrap_or(0.5)
+                                            as f32;
 
                                     // Update AURA window position smoothly in real time
                                     let orch_clone = orch_arc.clone();
@@ -150,24 +203,38 @@ impl HandTrackerProcess {
                                         mov.update_hand_position(nx, ny);
                                     });
 
-                                    let _ = app_handle.emit("aura-hand-position", serde_json::json!({
-                                        "x": nx,
-                                        "y": ny,
-                                        "detected": true
-                                    }));
+                                    let _ = app_handle.emit(
+                                        "aura-hand-position",
+                                        serde_json::json!({
+                                            "x": nx,
+                                            "y": ny,
+                                            "detected": true
+                                        }),
+                                    );
                                 } else {
-                                    let _ = app_handle.emit("aura-hand-position", serde_json::json!({
-                                        "detected": false
-                                    }));
+                                    let _ = app_handle.emit(
+                                        "aura-hand-position",
+                                        serde_json::json!({
+                                            "detected": false
+                                        }),
+                                    );
                                 }
                             }
                             "gesture" => {
-                                let gesture = val.get("gesture").and_then(|v| v.as_str()).unwrap_or("");
-                                crate::logger::log("VISION", "SUCCESS", &format!("Detected gesture: '{}'", gesture));
-                                
-                                let _ = app_handle.emit("aura-gesture", serde_json::json!({
-                                    "gesture": gesture
-                                }));
+                                let gesture =
+                                    val.get("gesture").and_then(|v| v.as_str()).unwrap_or("");
+                                crate::logger::log(
+                                    "VISION",
+                                    "SUCCESS",
+                                    &format!("Detected gesture: '{}'", gesture),
+                                );
+
+                                let _ = app_handle.emit(
+                                    "aura-gesture",
+                                    serde_json::json!({
+                                        "gesture": gesture
+                                    }),
+                                );
 
                                 let orch_clone = orch_arc.clone();
                                 let gesture_str = gesture.to_string();
@@ -177,47 +244,89 @@ impl HandTrackerProcess {
                                     let mut mov = orch.movement.lock().await;
                                     match gesture_str.as_str() {
                                         "swipe_right" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Swipe Right -> Gliding directly to Right");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Swipe Right -> Gliding directly to Right",
+                                            );
                                             let _ = mov.move_to_preset("middle-right").await;
                                         }
                                         "swipe_left" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Swipe Left -> Gliding directly to Left");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Swipe Left -> Gliding directly to Left",
+                                            );
                                             let _ = mov.move_to_preset("middle-left").await;
                                         }
                                         "swipe_up" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Swipe Up -> Gliding directly Up");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Swipe Up -> Gliding directly Up",
+                                            );
                                             let _ = mov.move_to_preset("top-center").await;
                                         }
                                         "swipe_down" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Swipe Down -> Gliding directly Down");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Swipe Down -> Gliding directly Down",
+                                            );
                                             let _ = mov.move_to_preset("bottom-center").await;
                                         }
                                         "open_palm" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Open Palm -> Gliding to Center");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Open Palm -> Gliding to Center",
+                                            );
                                             let _ = mov.move_to_preset("center").await;
                                         }
                                         "fist" => {
-                                            crate::logger::log("MOVEMENT", "INFO", "Gesture: Fist -> Halting window movement");
+                                            crate::logger::log(
+                                                "MOVEMENT",
+                                                "INFO",
+                                                "Gesture: Fist -> Halting window movement",
+                                            );
                                             mov.stop_roaming();
                                         }
                                         "pinch" => {
-                                            crate::logger::log("PC_ACTION", "INFO", "Gesture: Pinch -> Minimizing AURA window");
-                                            let _ = crate::pc_controller::PcController::minimize_window(&app_h);
+                                            crate::logger::log(
+                                                "PC_ACTION",
+                                                "INFO",
+                                                "Gesture: Pinch -> Minimizing AURA window",
+                                            );
+                                            let _ =
+                                                crate::pc_controller::PcController::minimize_window(
+                                                    &app_h,
+                                                );
                                         }
                                         "peace" => {
                                             crate::logger::log("THEME", "INFO", "Gesture: Peace V-Sign -> Cycling UI theme to Purple");
-                                            let _ = app_h.emit("aura-color", serde_json::json!({ "color": "purple" }));
+                                            let _ = app_h.emit(
+                                                "aura-color",
+                                                serde_json::json!({ "color": "purple" }),
+                                            );
                                         }
                                         "thumbs_up" => {
-                                            crate::logger::log("THEME", "INFO", "Gesture: Thumbs Up -> Affirmative Emerald glow");
-                                            let _ = app_h.emit("aura-color", serde_json::json!({ "color": "emerald" }));
+                                            crate::logger::log(
+                                                "THEME",
+                                                "INFO",
+                                                "Gesture: Thumbs Up -> Affirmative Emerald glow",
+                                            );
+                                            let _ = app_h.emit(
+                                                "aura-color",
+                                                serde_json::json!({ "color": "emerald" }),
+                                            );
                                         }
                                         _ => {}
                                     }
                                 });
                             }
                             "log" => {
-                                let lvl = val.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
+                                let lvl =
+                                    val.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
                                 let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("");
                                 crate::logger::log("VISION", lvl, msg);
                             }
@@ -254,7 +363,11 @@ impl HandTrackerProcess {
     }
 
     pub fn stop_tracking(&self) {
-        crate::logger::log("VISION", "INFO", "Sending command: stop hand tracking and release camera");
+        crate::logger::log(
+            "VISION",
+            "INFO",
+            "Sending command: stop hand tracking and release camera",
+        );
         self.is_tracking.store(false, Ordering::SeqCst);
         self.write_cmd("stop");
     }
